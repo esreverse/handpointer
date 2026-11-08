@@ -11,36 +11,31 @@
 # - Signs with the keychain identity "TinyHand Local Signing" (override with
 #   LOCAL_SIGN_IDENTITY) so the Accessibility permission survives rebuilds.
 #   Falls back to an ad hoc signature, which needs the permission again after each build.
-# - No hardened runtime. The app has no auto-update.
+# - No hardened runtime. Updates come through Sparkle from the GitHub releases.
 # - macOS asks for Accessibility again after each new build.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 cd "$ROOT"
 
-export BUILD_DIR="${BUILD_DIR:-$HOME/Library/Caches/tinypointer-build}"
 INSTALL=false
 [[ "${1:-}" == "--install" ]] && INSTALL=true
 
-if [[ -z "${SDKROOT:-}" && "$(xcode-select -p)" == *CommandLineTools* ]]; then
-    sdk="$(ls -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.*.sdk 2>/dev/null | sort -V | tail -1 || true)"
-    if [[ -n "$sdk" ]]; then
-        export SDKROOT="$sdk"
-    fi
-fi
+pick_sdk
 echo "==> Building $APP_NAME $VERSION${SDKROOT:+ with $(basename "$SDKROOT")}"
 swift build -c release --scratch-path "$BUILD_DIR"
 
 APP="$BUILD_DIR/dist/$APP_NAME.app"
 mkdir -p "$BUILD_DIR/dist"
-make_bundle "$BUILD_DIR/release/$APP_NAME" "$APP" "0"
+# A timestamp build number keeps a local build newer than the last release, so Sparkle
+# does not replace it with that release.
+make_bundle "$BUILD_DIR/release/$APP_NAME" "$APP" "$(date +%Y%m%d%H%M)"
 IDENTITY="${LOCAL_SIGN_IDENTITY:-TinyHand Local Signing}"
 if security find-identity -p codesigning | grep -q "\"$IDENTITY\""; then
-    codesign --force --sign "$IDENTITY" "$APP"
+    sign_app "$APP" "$IDENTITY"
 else
     echo "No \"$IDENTITY\" identity in the keychain; signing ad hoc."
-    codesign --force --sign - "$APP"
+    sign_app "$APP" "-"
 fi
-codesign --verify --deep --strict "$APP"
 echo "Built $APP"
 
 if [[ "$INSTALL" == true ]]; then

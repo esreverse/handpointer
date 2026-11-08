@@ -12,6 +12,24 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     var applyToolbarShortcut: ((Shortcut) -> Bool)? {
         didSet { model.applyToolbarShortcut = applyToolbarShortcut }
     }
+    var applyRainbowInkShortcut: ((Shortcut) -> Bool)? {
+        didSet { model.applyRainbowInkShortcut = applyRainbowInkShortcut }
+    }
+    var applyMatchInkShortcut: ((Shortcut) -> Bool)? {
+        didSet { model.applyMatchInkShortcut = applyMatchInkShortcut }
+    }
+    var applyNextPointerShortcut: ((Shortcut) -> Bool)? {
+        didSet { model.applyNextPointerShortcut = applyNextPointerShortcut }
+    }
+    var applyPreviousPointerShortcut: ((Shortcut) -> Bool)? {
+        didSet { model.applyPreviousPointerShortcut = applyPreviousPointerShortcut }
+    }
+    var applySoundShortcut: ((Shortcut) -> Bool)? {
+        didSet { model.applySoundShortcut = applySoundShortcut }
+    }
+    var updater: Updater? {
+        didSet { model.updater = updater }
+    }
     var onRecording: ((Bool) -> Void)? {
         didSet { model.onRecording = onRecording }
     }
@@ -115,7 +133,7 @@ final class ShortcutRecorder: NSButton {
         keys.translatesAutoresizingMaskIntoConstraints = false
         addSubview(keys)
         NSLayoutConstraint.activate([
-            keys.centerXAnchor.constraint(equalTo: centerXAnchor),
+            keys.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
             keys.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
         setLabel(shortcut.display)

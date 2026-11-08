@@ -72,6 +72,9 @@ final class OverlayController {
             self.tapSound.play()
             self.toolbar.hideHint()
             self.downPoint = self.localMouse()
+            if Preferences.tapRipples, let p = self.downPoint {
+                self.armView.ripple(at: p)
+            }
             self.dragEvents = 0
             Log.write("press at \(self.downPoint.map { "\(Int($0.x)),\(Int($0.y))" } ?? "?")")
             self.noteButtonEvent()
@@ -157,6 +160,18 @@ final class OverlayController {
         PointerStyle.saved = armView.style
         toolbar.select(armView.style)
         syncSound()
+    }
+
+    /// Switches to the next (or previous) pointer in the toolbar, wrapping around.
+    func cyclePointer(by step: Int) {
+        let styles = Preferences.pinnedStyles
+        guard !styles.isEmpty else {
+            return
+        }
+        let index = styles.firstIndex(of: armView.style) ?? (step > 0 ? -1 : 0)
+        let next = ((index + step) % styles.count + styles.count) % styles.count
+        pick(styles[next])
+        wake()
     }
 
     private func syncSound() {
@@ -346,8 +361,12 @@ final class OverlayController {
         let near = f.insetBy(dx: -80, dy: 0).union(f.offsetBy(dx: 0, dy: 90)).insetBy(dx: 0, dy: -10).contains(mouse)
         let needsPermission = !inputTap.isInstalled
         let drawing = armView.ink.isDrawing
+        let key = Preferences.interactKey.cgFlags
+        let interacting = (!key.isEmpty && CGEventSource.flagsState(.hidSystemState).contains(key)) || inputTap.interactPressing
         let wantToolbar = Preferences.showToolbar || needsPermission
-        toolbar.setRevealed(wantToolbar && !drawing && (near || Date() < revealUntil || needsPermission))
+        // While the interact key is held the toolbar gets out of the way at once, without fading.
+        toolbar.setRevealed(wantToolbar && !drawing && !interacting && (near || Date() < revealUntil || needsPermission),
+                            animated: !interacting)
 
         let menuLikely = !menuRects.isEmpty || ownMenuOpen || Date() < menuOpeningUntil
             || Date().timeIntervalSince(lastButtonEvent) < 2
@@ -361,8 +380,6 @@ final class OverlayController {
         let cgMouse = OverlayController.cgPoint(mouse)
         let overMenu = menuBar.contains(mouse) || menuRects.contains { $0.contains(cgMouse) }
             || Date() < menuOpeningUntil
-        let key = Preferences.interactKey.cgFlags
-        let interacting = (!key.isEmpty && CGEventSource.flagsState(.hidSystemState).contains(key)) || inputTap.interactPressing
         interactHeld = interacting
         menuHover = overMenu
         let normal = !drawing && !Preferences.interactKeepsHand && (interacting || overMenu || ownMenuOpen)

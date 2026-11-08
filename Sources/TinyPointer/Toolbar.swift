@@ -15,6 +15,52 @@ final class Toolbar {
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     }
 
+    /// Grip on the left end: drag to move the toolbar, right-click to put it back.
+    private final class Handle: NSView {
+        var onMoved: (() -> Void)?
+        var onReset: (() -> Void)?
+        private var start: CGPoint?
+        private var startOrigin: CGPoint?
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        override func draw(_ dirtyRect: NSRect) {
+            NSColor(white: 1, alpha: 0.45).setFill()
+            for col in 0..<2 {
+                for row in 0..<3 {
+                    let x = bounds.midX - 3 + CGFloat(col) * 6 - 1.25
+                    let y = bounds.midY - 6 + CGFloat(row) * 6 - 1.25
+                    NSBezierPath(ovalIn: CGRect(x: x, y: y, width: 2.5, height: 2.5)).fill()
+                }
+            }
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            start = NSEvent.mouseLocation
+            startOrigin = window?.frame.origin
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            guard let start = start, let origin = startOrigin, let window = window else {
+                return
+            }
+            let now = NSEvent.mouseLocation
+            window.setFrameOrigin(CGPoint(x: origin.x + now.x - start.x, y: origin.y + now.y - start.y))
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            if start != nil {
+                onMoved?()
+            }
+            start = nil
+            startOrigin = nil
+        }
+
+        override func rightMouseDown(with event: NSEvent) {
+            onReset?()
+        }
+    }
+
     private let panel: Panel
     private let stack = NSStackView()
     private var styleButtons: [PointerStyle: Button] = [:]
@@ -22,6 +68,7 @@ final class Toolbar {
     private var current: PointerStyle?
     private var inkButton: Button?
     private var swatches: [InkChoice: Button] = [:]
+    private var inkDivider: NSView?
     private var inkOpen = false
     private let permissionButton = Button()
     private var soundButton: Button?
@@ -46,12 +93,12 @@ final class Toolbar {
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         panel.alphaValue = 0
 
-        let background = NSVisualEffectView.darkGlass(radius: 16)
+        let background = NSVisualEffectView.darkGlass(radius: 20)
         panel.contentView = background
 
         stack.orientation = .horizontal
         stack.spacing = 6
-        stack.edgeInsets = NSEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+        stack.edgeInsets = NSEdgeInsets(top: 12, left: 14, bottom: 12, right: 14)
         stack.translatesAutoresizingMaskIntoConstraints = false
         background.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -86,12 +133,27 @@ final class Toolbar {
             trayStack.bottomAnchor.constraint(equalTo: trayBackground.bottomAnchor),
         ])
 
+        let handle = Handle()
+        handle.toolTip = "Drag to move the toolbar. Right-click to put it back"
+        handle.translatesAutoresizingMaskIntoConstraints = false
+        handle.widthAnchor.constraint(equalToConstant: 14).isActive = true
+        handle.heightAnchor.constraint(equalToConstant: 40).isActive = true
+        handle.onMoved = { [weak self] in self?.savePosition() }
+        handle.onReset = { [weak self] in self?.resetPosition() }
+        stack.insertArrangedSubview(handle, at: 0)
+
         stack.addArrangedSubview(Toolbar.divider())
-        let ink = makeButton(image: nil, tip: "Ink colour") { [weak self] in
-            self?.toggleInk()
+        // Ink colours sit right in the toolbar, one button each, instead of in a pop-up tray.
+        for choice in InkChoice.allCases {
+            let b = makeButton(image: nil, tip: choice.title) {
+                Preferences.inkChoice = choice
+            }
+            swatches[choice] = b
+            stack.addArrangedSubview(b)
         }
-        inkButton = ink
-        stack.addArrangedSubview(ink)
+        let divider = Toolbar.divider()
+        inkDivider = divider
+        stack.addArrangedSubview(divider)
         let sound = makeButton(symbol: "speaker.wave.2.fill", tip: "Tap sound") { [weak self] in
             self?.onToggleSound?()
         }
@@ -179,23 +241,22 @@ final class Toolbar {
     }
 
     private func refreshInk() {
-        guard let ink = inkButton else {
-            return
-        }
-        let style = current ?? PointerStyle.saved
-        ink.image = Preferences.inkChoice == .rainbow ? Toolbar.hueDot() : Toolbar.inkDot(Preferences.inkChoice.resolved(for: style))
-        ink.layer?.backgroundColor = inkOpen ? NSColor(white: 1, alpha: 0.18).cgColor : NSColor.clear.cgColor
         let hidden = !Preferences.showInkButton
-        if ink.isHidden != hidden {
-            ink.isHidden = hidden
-            if hidden {
-                setInkOpen(false)
-            }
-            resizeKeepingCenter()
-        }
+        var changed = false
         for (choice, b) in swatches {
             b.image = choice == .rainbow ? Toolbar.hueDot() : choice.color.map(Toolbar.inkDot) ?? Toolbar.rainbowDot()
             b.layer?.backgroundColor = choice == Preferences.inkChoice ? NSColor(white: 1, alpha: 0.2).cgColor : NSColor.clear.cgColor
+            if b.isHidden != hidden {
+                b.isHidden = hidden
+                changed = true
+            }
+        }
+        if let divider = inkDivider, divider.isHidden != hidden {
+            divider.isHidden = hidden
+            changed = true
+        }
+        if changed {
+            resizeKeepingCenter()
         }
     }
 
@@ -220,11 +281,11 @@ final class Toolbar {
         }
         styleButtons = [:]
         for (i, style) in styles.enumerated() {
-            let b = makeButton(image: Toolbar.icon(for: style), tip: style.title) { [weak self] in
+            let b = makeButton(image: Toolbar.padded(Toolbar.icon(for: style)), tip: style.title) { [weak self] in
                 self?.onPick?(style)
             }
             styleButtons[style] = b
-            stack.insertArrangedSubview(b, at: i)
+            stack.insertArrangedSubview(b, at: i + 1)  // after the drag handle
         }
         if let c = current {
             highlight(c)
@@ -373,10 +434,38 @@ final class Toolbar {
         panel.setFrameOrigin(CGPoint(x: center.x - panel.frame.width / 2, y: center.y))
     }
 
+    private weak var placedScreen: NSScreen?
+
     func place(on screen: NSScreen) {
         setInkOpen(false)
+        placedScreen = screen
         let f = panel.frame
-        panel.setFrameOrigin(CGPoint(x: screen.frame.midX - f.width / 2, y: screen.visibleFrame.minY + 14))
+        let s = screen.frame
+        if let p = Preferences.toolbarPosition {
+            // Where the user dragged it, kept on screen.
+            let x = min(max(s.minX + p.x - f.width / 2, s.minX), s.maxX - f.width)
+            let y = min(max(s.minY + p.y, s.minY), s.maxY - f.height)
+            panel.setFrameOrigin(CGPoint(x: x, y: y))
+            return
+        }
+        // Keep clear of the Dock, also when it hides itself and only slides in near the bottom edge.
+        let base = max(screen.visibleFrame.minY, s.minY + 80)
+        panel.setFrameOrigin(CGPoint(x: s.midX - f.width / 2, y: base + 16))
+    }
+
+    private func savePosition() {
+        guard let screen = placedScreen ?? panel.screen else {
+            return
+        }
+        let f = panel.frame
+        Preferences.toolbarPosition = CGPoint(x: f.midX - screen.frame.minX, y: f.minY - screen.frame.minY)
+    }
+
+    private func resetPosition() {
+        Preferences.toolbarPosition = nil
+        if let screen = placedScreen ?? panel.screen {
+            place(on: screen)
+        }
     }
 
     func show() {
@@ -392,7 +481,7 @@ final class Toolbar {
         panel.orderOut(nil)
     }
 
-    func setRevealed(_ value: Bool) {
+    func setRevealed(_ value: Bool, animated: Bool = true) {
         guard value != revealed else {
             return
         }
@@ -401,6 +490,13 @@ final class Toolbar {
             setInkOpen(false)
         }
         panel.ignoresMouseEvents = !value
+        guard animated else {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0
+                panel.animator().alphaValue = value ? 1 : 0
+            }
+            return
+        }
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = value ? 0.15 : 0.35
             panel.animator().alphaValue = value ? 1 : 0
@@ -506,6 +602,19 @@ final class Toolbar {
         v.widthAnchor.constraint(equalToConstant: 1).isActive = true
         v.heightAnchor.constraint(equalToConstant: 24).isActive = true
         return v
+    }
+
+    /// Draws the image at 75% of its size, centred, so the selection frame has room around the hand.
+    static func padded(_ image: NSImage?, scale: CGFloat = 0.75) -> NSImage? {
+        guard let image = image else {
+            return nil
+        }
+        return NSImage(size: image.size, flipped: false) { rect in
+            let w = rect.width * scale
+            let h = rect.height * scale
+            image.draw(in: CGRect(x: rect.midX - w / 2, y: rect.midY - h / 2, width: w, height: h))
+            return true
+        }
     }
 
     static func icon(for style: PointerStyle) -> NSImage? {

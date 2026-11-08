@@ -3,10 +3,20 @@ set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 cd "$ROOT"
 
-IDENTITY="${CODESIGN_IDENTITY:-Developer ID Application}"
+# Signs with a Developer ID certificate when one is in the keychain, otherwise with the
+# local self-signed identity. Only Developer ID builds can be notarized.
+if [[ -z "${CODESIGN_IDENTITY:-}" ]]; then
+    if security find-identity -v -p codesigning | grep -q "Developer ID Application"; then
+        CODESIGN_IDENTITY="Developer ID Application"
+    else
+        CODESIGN_IDENTITY="TinyHand Local Signing"
+    fi
+fi
+IDENTITY="$CODESIGN_IDENTITY"
 PROFILE="${NOTARY_PROFILE:-notarytool-profile}"
 SKIP_NOTARIZE=false
 [[ "${1:-}" == "--skip-notarize" ]] && SKIP_NOTARIZE=true
+[[ "$IDENTITY" != Developer\ ID* ]] && SKIP_NOTARIZE=true
 
 OUT="dist/release"
 APP="$OUT/$APP_NAME.app"
@@ -25,10 +35,11 @@ notarize() {
 }
 
 echo "==> Building $APP_NAME $VERSION (universal)"
-swift build -c release --arch arm64 --arch x86_64
+pick_sdk
+swift build -c release --arch arm64 --arch x86_64 --scratch-path "$BUILD_DIR"
 rm -rf "$OUT"
 mkdir -p "$OUT"
-make_bundle .build/apple/Products/Release/$APP_NAME "$APP" "$BUILD_NUMBER" --with-updates
+make_bundle "$BUILD_DIR/apple/Products/Release/$APP_NAME" "$APP" "$BUILD_NUMBER"
 lipo -info "$APP/Contents/MacOS/$APP_NAME"
 
 echo "==> Signing with $IDENTITY"
@@ -44,6 +55,7 @@ fi
 echo "==> Building the DMG"
 STAGE="$(mktemp -d)"
 cp -R "$APP" "$STAGE/"
+if command -v create-dmg >/dev/null; then
 create-dmg \
     --volname "$APP_NAME" \
     --volicon "assets/AppIcon.icns" \
@@ -55,6 +67,10 @@ create-dmg \
     --app-drop-link 410 170 \
     --no-internet-enable \
     "$DMG" "$STAGE" >/dev/null
+else
+    ln -s /Applications "$STAGE/Applications"
+    hdiutil create -volname "$APP_NAME" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
+fi
 rm -rf "$STAGE"
 codesign --force --timestamp --sign "$IDENTITY" "$DMG"
 
@@ -73,7 +89,18 @@ if [[ -n "${SPARKLE_PRIVATE_KEY:-}" ]]; then
 else
     ENCLOSURE="$("$TOOLS/sign_update" --account tinypointer "$DMG")"
 fi
-NOTES_HTML="$(printf '%s' "${RELEASE_NOTES:-TinyPointer $VERSION}" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' | sed -e 's/$/<br>/')"
+# Release notes for the update dialog: RELEASE_NOTES if set, otherwise this version's section
+# of CHANGELOG.md ("## <version>" up to the next "## ").
+if [[ -z "${RELEASE_NOTES:-}" && -f CHANGELOG.md ]]; then
+    RELEASE_NOTES="$(awk -v v="## $VERSION" '$0 == v {on = 1; next} on && /^## / {exit} on' CHANGELOG.md)"
+fi
+NOTES_HTML="$(printf '%s\n' "${RELEASE_NOTES:-TinyPointer $VERSION}" \
+    | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' \
+    | awk 'BEGIN {list = 0}
+           /^- / {if (!list) {print "<ul>"; list = 1} sub(/^- /, ""); print "<li>" $0 "</li>"; next}
+           {if (list) {print "</ul>"; list = 0}}
+           NF {print "<p>" $0 "</p>"}
+           END {if (list) print "</ul>"}')"
 cat > "$OUT/appcast.xml" <<XML
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">

@@ -68,7 +68,11 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
             animStart = CACurrentMediaTime()
         }
 
-        if Preferences.zoomAnimated {
+        if !held {
+            // Only zooming in is animated; letting go closes the loupe at once.
+            zoom = 1
+            animFrom = 1
+        } else if Preferences.zoomAnimated {
             let t = min(1, max(0, (CACurrentMediaTime() - animStart) / animDuration))
             let eased = CGFloat(1 - pow(1 - t, 3))
             zoom = animFrom + (target - animFrom) * eased
@@ -146,10 +150,11 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
             return
         }
         guard CGPreflightScreenCaptureAccess() else {
+            // Never prompt while the pointer is on: the dialog can't be clicked through the overlay.
+            // Settings asks for the permission when zoom gets a key.
             if !askedPermission {
                 askedPermission = true
-                Log.write("zoom: asking for Screen Recording permission")
-                CGRequestScreenCaptureAccess()
+                Log.write("zoom: no Screen Recording permission; turn it on in Settings › Zoom")
             }
             return
         }

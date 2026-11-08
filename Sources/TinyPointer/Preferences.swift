@@ -7,12 +7,77 @@ struct Shortcut: Equatable {
     var modifiers: UInt32
     var display: String
 
+    /// A single-letter shortcut for the key that types `letter` on the current keyboard layout
+    /// (so "Y" is the Y key on a German keyboard too, where Y and Z swap places).
+    static func letter(_ letter: Character, fallback: Int) -> Shortcut {
+        let code = keyCode(typing: letter) ?? UInt32(fallback)
+        return Shortcut(keyCode: code, modifiers: 0, display: String(letter).uppercased())
+    }
+
+    private static func keyCode(typing letter: Character) -> UInt32? {
+        guard let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
+              let raw = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else {
+            return nil
+        }
+        let data = Unmanaged<CFData>.fromOpaque(raw).takeUnretainedValue() as Data
+        let wanted = String(letter).lowercased()
+        return data.withUnsafeBytes { buffer -> UInt32? in
+            guard let layout = buffer.baseAddress?.assumingMemoryBound(to: UCKeyboardLayout.self) else {
+                return nil
+            }
+            for code in 0..<128 {
+                var deadKeys: UInt32 = 0
+                var chars = [UniChar](repeating: 0, count: 4)
+                var length = 0
+                let status = UCKeyTranslate(layout, UInt16(code), UInt16(kUCKeyActionDown), 0, UInt32(LMGetKbdType()),
+                                            OptionBits(kUCKeyTranslateNoDeadKeysBit), &deadKeys, chars.count, &length, &chars)
+                if status == noErr, length > 0, String(utf16CodeUnits: chars, count: length) == wanted {
+                    return UInt32(code)
+                }
+            }
+            return nil
+        }
+    }
+
     /// A shortcut without ⌃, ⌥ or ⌘, such as a lone ⇥. Only safe to grab while the pointer is on.
     var isBare: Bool { modifiers & UInt32(controlKey | optionKey | cmdKey) == 0 }
 
+    /// Key equivalent and modifiers for showing this shortcut in a menu,
+    /// where macOS draws it right-aligned and dimmed.
+    var menuKey: (key: String, modifiers: NSEvent.ModifierFlags) {
+        var flags: NSEvent.ModifierFlags = []
+        if modifiers & UInt32(controlKey) != 0 { flags.insert(.control) }
+        if modifiers & UInt32(optionKey) != 0 { flags.insert(.option) }
+        if modifiers & UInt32(shiftKey) != 0 { flags.insert(.shift) }
+        if modifiers & UInt32(cmdKey) != 0 { flags.insert(.command) }
+        func function(_ code: Int) -> String { String(Character(UnicodeScalar(UInt16(code))!)) }
+        let special: [Int: String] = [
+            kVK_Tab: "\t", kVK_Return: "\r", kVK_Space: " ", kVK_Delete: "\u{8}", kVK_Escape: "\u{1b}",
+            kVK_ForwardDelete: function(NSDeleteFunctionKey),
+            kVK_LeftArrow: function(NSLeftArrowFunctionKey), kVK_RightArrow: function(NSRightArrowFunctionKey),
+            kVK_UpArrow: function(NSUpArrowFunctionKey), kVK_DownArrow: function(NSDownArrowFunctionKey),
+            kVK_Home: function(NSHomeFunctionKey), kVK_End: function(NSEndFunctionKey),
+            kVK_PageUp: function(NSPageUpFunctionKey), kVK_PageDown: function(NSPageDownFunctionKey),
+            kVK_F1: function(NSF1FunctionKey), kVK_F2: function(NSF2FunctionKey), kVK_F3: function(NSF3FunctionKey),
+            kVK_F4: function(NSF4FunctionKey), kVK_F5: function(NSF5FunctionKey), kVK_F6: function(NSF6FunctionKey),
+            kVK_F7: function(NSF7FunctionKey), kVK_F8: function(NSF8FunctionKey), kVK_F9: function(NSF9FunctionKey),
+            kVK_F10: function(NSF10FunctionKey), kVK_F11: function(NSF11FunctionKey), kVK_F12: function(NSF12FunctionKey),
+        ]
+        if let key = special[Int(keyCode)] {
+            return (key, flags)
+        }
+        let name = display.filter { !"⌃⌥⇧⌘".contains($0) }
+        return (name.lowercased(), flags)
+    }
+
     static let toggleDefault = Shortcut(keyCode: UInt32(kVK_Tab), modifiers: UInt32(controlKey), display: "⌃⇥")
     static let clearDefault = Shortcut(keyCode: UInt32(kVK_Tab), modifiers: 0, display: "⇥")
-    static let toolbarDefault = Shortcut(keyCode: UInt32(kVK_ANSI_T), modifiers: 0, display: "T")
+    static let toolbarDefault = Shortcut(keyCode: UInt32(kVK_ANSI_H), modifiers: 0, display: "H")
+    static let rainbowInkDefault = Shortcut.letter("R", fallback: kVK_ANSI_R)
+    static let matchInkDefault = Shortcut.letter("A", fallback: kVK_ANSI_A)
+    static let nextPointerDefault = Shortcut.letter("X", fallback: kVK_ANSI_X)
+    static let previousPointerDefault = Shortcut.letter("Y", fallback: kVK_ANSI_Y)
+    static let soundDefault = Shortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: 0, display: "M")
 }
 
 enum InteractKey: String, CaseIterable {
@@ -130,6 +195,31 @@ enum Preferences {
         set { saveShortcut(newValue, "shortcut.toolbar") }
     }
 
+    static var nextPointerShortcut: Shortcut {
+        get { loadShortcut("shortcut.nextPointer") ?? .nextPointerDefault }
+        set { saveShortcut(newValue, "shortcut.nextPointer") }
+    }
+
+    static var previousPointerShortcut: Shortcut {
+        get { loadShortcut("shortcut.previousPointer") ?? .previousPointerDefault }
+        set { saveShortcut(newValue, "shortcut.previousPointer") }
+    }
+
+    static var rainbowInkShortcut: Shortcut {
+        get { loadShortcut("shortcut.rainbowInk") ?? .rainbowInkDefault }
+        set { saveShortcut(newValue, "shortcut.rainbowInk") }
+    }
+
+    static var matchInkShortcut: Shortcut {
+        get { loadShortcut("shortcut.matchInk") ?? .matchInkDefault }
+        set { saveShortcut(newValue, "shortcut.matchInk") }
+    }
+
+    static var soundShortcut: Shortcut {
+        get { loadShortcut("shortcut.sound") ?? .soundDefault }
+        set { saveShortcut(newValue, "shortcut.sound") }
+    }
+
     static let pointerSizeRange: ClosedRange<CGFloat> = 0.08...0.20
 
     static var pointerSize: CGFloat {
@@ -177,6 +267,33 @@ enum Preferences {
         set { set(newValue.rawValue, "inkChoice") }
     }
 
+    /// Where the toolbar was dragged to: its centre x and bottom y, relative to the screen's
+    /// bottom-left corner. Nil until it is moved; a right-click on its handle clears it.
+    static var toolbarPosition: CGPoint? {
+        get {
+            guard let x = defaults.object(forKey: "toolbarX") as? Double,
+                  let y = defaults.object(forKey: "toolbarY") as? Double else {
+                return nil
+            }
+            return CGPoint(x: x, y: y)
+        }
+        set {
+            if let p = newValue {
+                defaults.set(Double(p.x), forKey: "toolbarX")
+                defaults.set(Double(p.y), forKey: "toolbarY")
+            } else {
+                defaults.removeObject(forKey: "toolbarX")
+                defaults.removeObject(forKey: "toolbarY")
+            }
+        }
+    }
+
+    /// Concentric rings grow and fade out where you tap.
+    static var tapRipples: Bool {
+        get { defaults.bool(forKey: "tapRipples") }
+        set { set(newValue, "tapRipples") }
+    }
+
     static var showToolbar: Bool {
         get { defaults.object(forKey: "showToolbar") as? Bool ?? true }
         set { set(newValue, "showToolbar") }
@@ -197,8 +314,42 @@ enum Preferences {
     }
 
     static var zoomKey: HoldKey {
-        get { defaults.string(forKey: "zoomKey").flatMap(HoldKey.init(rawValue:)) ?? .shift }
+        get { defaults.string(forKey: "zoomKey").flatMap(HoldKey.init(rawValue:)) ?? .off }
         set { set(newValue.rawValue, "zoomKey") }
+    }
+
+    /// Asks for Screen Recording, which the zoom loupe needs, and opens System Settings at that list.
+    /// Called from Settings when zoom gets a key, so the prompt never shows up while the pointer is on.
+    /// The key zoom used before it was turned off, so turning it back on restores it.
+    static var lastZoomKey: HoldKey {
+        get { defaults.string(forKey: "lastZoomKey").flatMap(HoldKey.init(rawValue:)).flatMap { $0 == .off ? nil : $0 } ?? .shift }
+        set { set(newValue.rawValue, "lastZoomKey") }
+    }
+
+    /// Turns zoom on with the last key used, or off.
+    static var zoomEnabled: Bool {
+        get { zoomKey != .off }
+        set {
+            if newValue {
+                zoomKey = lastZoomKey
+                requestScreenRecordingIfNeeded()
+            } else {
+                if zoomKey != .off {
+                    lastZoomKey = zoomKey
+                }
+                zoomKey = .off
+            }
+        }
+    }
+
+    static func requestScreenRecordingIfNeeded() {
+        guard !CGPreflightScreenCaptureAccess() else {
+            return
+        }
+        CGRequestScreenCaptureAccess()
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     static let loupeSizeRange = 120...480
@@ -209,11 +360,11 @@ enum Preferences {
         set { set(min(480, max(120, newValue)), "loupeSize") }
     }
 
-    static let zoomFactorChoices: [Double] = [1.5, 2, 2.5, 3, 4, 5, 6]
+    static let zoomFactorRange = 1.5...6.0
 
     static var zoomFactor: Double {
-        get { defaults.object(forKey: "zoomFactor") as? Double ?? 3 }
-        set { set(newValue, "zoomFactor") }
+        get { min(6, max(1.5, defaults.object(forKey: "zoomFactor") as? Double ?? 3)) }
+        set { set(min(6, max(1.5, newValue)), "zoomFactor") }
     }
 
     /// Zoom in and out smoothly instead of jumping straight to the factor.
@@ -299,10 +450,12 @@ enum Preferences {
     }
 
     static func resetAll() {
-        for key in ["shortcut.toggle", "shortcut.clear", "shortcut.toolbar", "pointerSize", "showShadow", "fadeSeconds",
+        for key in ["shortcut.toggle", "shortcut.clear", "shortcut.toolbar",
+                    "shortcut.nextPointer", "shortcut.previousPointer", "shortcut.sound",
+                    "shortcut.rainbowInk", "shortcut.matchInk", "pointerSize", "showShadow", "fadeSeconds",
                     "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "pinnedStyles", "pointerStyle",
                     "inkChoice", "showInkButton", "tapSound", "showToolbar", "inkOpacity", "rainbowStep", "rainbowSpeed", "strokeSize",
-                    "zoomKey", "loupeSize", "rightClickExits", "zoomFactor", "zoomAnimated"] {
+                    "toolbarX", "toolbarY", "tapRipples", "zoomKey", "lastZoomKey", "loupeSize", "rightClickExits", "zoomFactor", "zoomAnimated"] {
             defaults.removeObject(forKey: key)
         }
         NotificationCenter.default.post(name: changed, object: nil)

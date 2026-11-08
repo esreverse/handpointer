@@ -6,11 +6,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let overlay = OverlayController()
     private let settings = SettingsWindow()
+    private let updater = Updater()
     private let welcome = WelcomeWindow()
     private var permissionItem: NSMenuItem?
     private let menu = NSMenu()
     private var toggleItem: NSMenuItem?
     private var clearItem: NSMenuItem?
+    private var toolbarItem: NSMenuItem?
     private var soundItem: NSMenuItem?
     private var hotKeys: [ShortcutAction: UInt32] = [:]
     private var hotKeysPaused = false
@@ -34,6 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return [frame]
         }
         enableLaunchAtLoginOnFirstRun()
+        updater.start()
         setupStatusItem()
         setupSettings()
         registerHotKeys()
@@ -64,13 +67,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         permissionItem = permission
         menu.addItem(permission)
         let toggle = NSMenuItem(title: "", action: #selector(toggle), keyEquivalent: "")
-        let clear = NSMenuItem(title: "", action: #selector(clearInk), keyEquivalent: "")
+        let clear = NSMenuItem(title: "Clear Drawing", action: #selector(clearInk), keyEquivalent: "")
+        let toolbar = NSMenuItem(title: "Show/Hide Toolbar", action: #selector(toggleToolbar), keyEquivalent: "")
         let sound = NSMenuItem(title: "Tap Sound", action: #selector(toggleSound), keyEquivalent: "")
         toggleItem = toggle
         clearItem = clear
+        toolbarItem = toolbar
         soundItem = sound
         menu.addItem(toggle)
         menu.addItem(clear)
+        menu.addItem(toolbar)
         menu.addItem(sound)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
@@ -90,6 +96,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settings.applyToolbarShortcut = { [weak self] s in
             self?.apply(s, to: .toolbar) ?? false
         }
+        settings.applyRainbowInkShortcut = { [weak self] s in
+            self?.apply(s, to: .rainbowInk) ?? false
+        }
+        settings.applyMatchInkShortcut = { [weak self] s in
+            self?.apply(s, to: .matchInk) ?? false
+        }
+        settings.applyNextPointerShortcut = { [weak self] s in
+            self?.apply(s, to: .nextPointer) ?? false
+        }
+        settings.applyPreviousPointerShortcut = { [weak self] s in
+            self?.apply(s, to: .previousPointer) ?? false
+        }
+        settings.applySoundShortcut = { [weak self] s in
+            self?.apply(s, to: .sound) ?? false
+        }
+        settings.updater = Updater.isAvailable ? updater : nil
         settings.onRecording = { [weak self] recording in
             if recording {
                 self?.unregisterHotKeys()
@@ -120,16 +142,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         overlay.suspendInput(false)
     }
 
+    /// Shows a shortcut the way macOS does: right-aligned and dimmed.
+    private func setShortcut(_ item: NSMenuItem?, _ shortcut: Shortcut) {
+        let key = shortcut.menuKey
+        item?.keyEquivalent = key.key
+        item?.keyEquivalentModifierMask = key.modifiers
+    }
+
+    @objc private func toggleToolbar() {
+        overlay.toggleToolbar()
+    }
+
     private func refreshMenu() {
-        let on = overlay.isActive
-        toggleItem?.title = "\(on ? "Turn Pointer Off" : "Turn Pointer On")    \(Preferences.toggleShortcut.display)"
-        clearItem?.title = "Clear Drawing    \(Preferences.clearShortcut.display)"
+        toggleItem?.title = "Toggle Pointer On/Off"
+        setShortcut(toggleItem, Preferences.toggleShortcut)
+        setShortcut(clearItem, Preferences.clearShortcut)
+        setShortcut(toolbarItem, Preferences.toolbarShortcut)
         soundItem?.state = overlay.soundOn ? .on : .off
         permissionItem?.isHidden = AXIsProcessTrusted()
     }
 
     private enum ShortcutAction: CaseIterable {
-        case toggle, clear, toolbar
+        case toggle, clear, toolbar, rainbowInk, matchInk, nextPointer, previousPointer, sound
 
         var shortcut: Shortcut {
             get {
@@ -137,6 +171,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 case .toggle: return Preferences.toggleShortcut
                 case .clear: return Preferences.clearShortcut
                 case .toolbar: return Preferences.toolbarShortcut
+                case .rainbowInk: return Preferences.rainbowInkShortcut
+                case .matchInk: return Preferences.matchInkShortcut
+                case .nextPointer: return Preferences.nextPointerShortcut
+                case .previousPointer: return Preferences.previousPointerShortcut
+                case .sound: return Preferences.soundShortcut
                 }
             }
             nonmutating set {
@@ -144,6 +183,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 case .toggle: Preferences.toggleShortcut = newValue
                 case .clear: Preferences.clearShortcut = newValue
                 case .toolbar: Preferences.toolbarShortcut = newValue
+                case .rainbowInk: Preferences.rainbowInkShortcut = newValue
+                case .matchInk: Preferences.matchInkShortcut = newValue
+                case .nextPointer: Preferences.nextPointerShortcut = newValue
+                case .previousPointer: Preferences.previousPointerShortcut = newValue
+                case .sound: Preferences.soundShortcut = newValue
                 }
             }
         }
@@ -167,6 +211,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .toggle: overlay.toggle()
         case .clear: overlay.clearInk()
         case .toolbar: overlay.toggleToolbar()
+        case .rainbowInk: Preferences.inkChoice = .rainbow
+        case .matchInk: Preferences.inkChoice = .match
+        case .nextPointer: overlay.cyclePointer(by: 1)
+        case .previousPointer: overlay.cyclePointer(by: -1)
+        case .sound: overlay.soundOn.toggle()
         }
     }
 
