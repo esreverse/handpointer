@@ -154,7 +154,7 @@ final class Toolbar {
         let divider = Toolbar.divider()
         inkDivider = divider
         stack.addArrangedSubview(divider)
-        let sound = makeButton(symbol: "speaker.wave.2.fill", tip: "Tap sound") { [weak self] in
+        let sound = makeButton(symbol: "speaker.wave.2.fill", tip: "Sound") { [weak self] in
             self?.onToggleSound?()
         }
         soundButton = sound
@@ -296,7 +296,7 @@ final class Toolbar {
     func setSoundOn(_ on: Bool) {
         let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
         let name = on ? "speaker.wave.2.fill" : "speaker.slash.fill"
-        let tip = on ? "Tap sound on — click to mute" : "Tap sound off — click to unmute"
+        let tip = on ? "Sound on – click to mute" : "Sound off – click to unmute"
         soundButton?.image = NSImage(systemSymbolName: name, accessibilityDescription: tip)?.withSymbolConfiguration(config)
         soundButton?.toolTip = tip
         soundButton?.contentTintColor = NSColor(white: 1, alpha: on ? 0.85 : 0.45)

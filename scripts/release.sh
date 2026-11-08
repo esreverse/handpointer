@@ -39,7 +39,10 @@ pick_sdk
 swift build -c release --arch arm64 --arch x86_64 --scratch-path "$BUILD_DIR"
 rm -rf "$OUT"
 mkdir -p "$OUT"
-make_bundle "$BUILD_DIR/apple/Products/Release/$APP_NAME" "$APP" "$BUILD_NUMBER"
+# Universal builds land in apple/ with Xcode's build system and in out/ with SwiftPM's own.
+PRODUCTS="$BUILD_DIR/apple/Products/Release"
+[[ -x "$PRODUCTS/$APP_NAME" ]] || PRODUCTS="$BUILD_DIR/out/Products/Release"
+make_bundle "$PRODUCTS/$APP_NAME" "$APP" "$BUILD_NUMBER"
 lipo -info "$APP/Contents/MacOS/$APP_NAME"
 
 echo "==> Signing with $IDENTITY"

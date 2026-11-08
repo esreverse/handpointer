@@ -69,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let toggle = NSMenuItem(title: "", action: #selector(toggle), keyEquivalent: "")
         let clear = NSMenuItem(title: "Clear Drawing", action: #selector(clearInk), keyEquivalent: "")
         let toolbar = NSMenuItem(title: "Show/Hide Toolbar", action: #selector(toggleToolbar), keyEquivalent: "")
-        let sound = NSMenuItem(title: "Tap Sound", action: #selector(toggleSound), keyEquivalent: "")
+        let sound = NSMenuItem(title: "Sound", action: #selector(toggleSound), keyEquivalent: "")
         toggleItem = toggle
         clearItem = clear
         toolbarItem = toolbar

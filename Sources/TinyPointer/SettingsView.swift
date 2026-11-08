@@ -1259,7 +1259,7 @@ private struct SoundPage: View {
         let on = Preferences.handSound
         VStack(alignment: .leading, spacing: 22) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Tap sound")
+                Text("Sound")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 4)
@@ -1283,10 +1283,10 @@ private struct SoundPage: View {
                     .padding(.horizontal, 4)
             }
             Card(title: nil) {
-                Row("Play the sound", detail: "When you tap, or also when you start drawing") {
+                Row("Play sound", detail: "When you tap, or also when you start drawing") {
                     Picker("", selection: model.binding({ Preferences.soundOnDraw }, { Preferences.soundOnDraw = $0 })) {
                         Text("On tap").tag(false)
-                        Text("On tap and draw").tag(true)
+                        Text("On tap & draw").tag(true)
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
