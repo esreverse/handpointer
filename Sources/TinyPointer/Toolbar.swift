@@ -113,7 +113,7 @@ final class Toolbar {
         permissionButton.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: nil)
         permissionButton.imagePosition = .imageLeading
         permissionButton.contentTintColor = .black
-        permissionButton.toolTip = "TinyHand needs Accessibility permission to intercept clicks and draw"
+        permissionButton.toolTip = "TinyPointer needs Accessibility permission to intercept clicks and draw"
         permissionButton.heightAnchor.constraint(equalToConstant: 32).isActive = true
         permissionButton.target = self
         permissionButton.action = #selector(fixPermission)
@@ -183,7 +183,7 @@ final class Toolbar {
             return
         }
         let style = current ?? PointerStyle.saved
-        ink.image = Toolbar.inkDot(Preferences.inkChoice.resolved(for: style))
+        ink.image = Preferences.inkChoice == .rainbow ? Toolbar.hueDot() : Toolbar.inkDot(Preferences.inkChoice.resolved(for: style))
         ink.layer?.backgroundColor = inkOpen ? NSColor(white: 1, alpha: 0.18).cgColor : NSColor.clear.cgColor
         let hidden = !Preferences.showInkButton
         if ink.isHidden != hidden {
@@ -194,7 +194,7 @@ final class Toolbar {
             resizeKeepingCenter()
         }
         for (choice, b) in swatches {
-            b.image = choice.color.map(Toolbar.inkDot) ?? Toolbar.rainbowDot()
+            b.image = choice == .rainbow ? Toolbar.hueDot() : choice.color.map(Toolbar.inkDot) ?? Toolbar.rainbowDot()
             b.layer?.backgroundColor = choice == Preferences.inkChoice ? NSColor(white: 1, alpha: 0.2).cgColor : NSColor.clear.cgColor
         }
     }
@@ -458,6 +458,22 @@ final class Toolbar {
             NSBezierPath(ovalIn: CGRect(x: c.x - r - 1.5, y: c.y - r - 2.5, width: 2 * r + 3, height: 2 * r + 3)).fill()
             (NSColor(cgColor: color) ?? .white).setFill()
             NSBezierPath(ovalIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)).fill()
+            NSColor(white: 1, alpha: 0.35).setFill()
+            NSBezierPath(ovalIn: CGRect(x: c.x - r * 0.55, y: c.y + r * 0.15, width: r * 0.7, height: r * 0.5)).fill()
+            return true
+        }
+    }
+
+    /// A dot with a horizontal gradient through all hues, for the rainbow ink.
+    private static func hueDot() -> NSImage {
+        NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
+            let c = CGPoint(x: rect.midX, y: rect.midY)
+            let r: CGFloat = 13
+            NSColor(white: 0, alpha: 0.35).setFill()
+            NSBezierPath(ovalIn: CGRect(x: c.x - r - 1.5, y: c.y - r - 2.5, width: 2 * r + 3, height: 2 * r + 3)).fill()
+            let colors = stride(from: 0.0, through: 1.0, by: 1.0 / 6).map { NSColor(hue: $0, saturation: 1, brightness: 1, alpha: 1) }
+            let oval = NSBezierPath(ovalIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r))
+            NSGradient(colors: colors)?.draw(in: oval, angle: 0)
             NSColor(white: 1, alpha: 0.35).setFill()
             NSBezierPath(ovalIn: CGRect(x: c.x - r * 0.55, y: c.y + r * 0.15, width: r * 0.7, height: r * 0.5)).fill()
             return true

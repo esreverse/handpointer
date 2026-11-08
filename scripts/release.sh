@@ -3,7 +3,7 @@ set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 cd "$ROOT"
 
-IDENTITY="${CODESIGN_IDENTITY:-Developer ID Application: Kamran Ahmed (6QG84AK9XP)}"
+IDENTITY="${CODESIGN_IDENTITY:-Developer ID Application}"
 PROFILE="${NOTARY_PROFILE:-notarytool-profile}"
 SKIP_NOTARIZE=false
 [[ "${1:-}" == "--skip-notarize" ]] && SKIP_NOTARIZE=true
@@ -71,9 +71,9 @@ TOOLS="$(sparkle_tools)"
 if [[ -n "${SPARKLE_PRIVATE_KEY:-}" ]]; then
     ENCLOSURE="$(printf '%s' "$SPARKLE_PRIVATE_KEY" | "$TOOLS/sign_update" --ed-key-file - "$DMG")"
 else
-    ENCLOSURE="$("$TOOLS/sign_update" --account tinyhand "$DMG")"
+    ENCLOSURE="$("$TOOLS/sign_update" --account tinypointer "$DMG")"
 fi
-NOTES_HTML="$(printf '%s' "${RELEASE_NOTES:-TinyHand $VERSION}" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' | sed -e 's/$/<br>/')"
+NOTES_HTML="$(printf '%s' "${RELEASE_NOTES:-TinyPointer $VERSION}" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' | sed -e 's/$/<br>/')"
 cat > "$OUT/appcast.xml" <<XML
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">

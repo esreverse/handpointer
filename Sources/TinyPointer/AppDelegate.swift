@@ -6,15 +6,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let overlay = OverlayController()
     private let settings = SettingsWindow()
-    private let updater = Updater()
     private let welcome = WelcomeWindow()
     private var permissionItem: NSMenuItem?
     private let menu = NSMenu()
     private var toggleItem: NSMenuItem?
     private var clearItem: NSMenuItem?
     private var soundItem: NSMenuItem?
-    private var toggleHotKey: UInt32?
-    private var clearHotKey: UInt32?
+    private var hotKeys: [ShortcutAction: UInt32] = [:]
+    private var hotKeysPaused = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = editingMenu()
@@ -23,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         CursorHider.enableBackgroundHiding()
         overlay.onActiveChanged = { [weak self] in
             self?.updateIcon()
+            self?.syncHotKeys()
         }
         overlay.onSoundChanged = { [weak self] in
             self?.refreshMenu()
@@ -34,7 +34,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return [frame]
         }
         enableLaunchAtLoginOnFirstRun()
-        updater.start()
         setupStatusItem()
         setupSettings()
         registerHotKeys()
@@ -75,23 +74,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(sound)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
-        if Updater.isAvailable {
-            menu.addItem(NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: ""))
-        }
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit TinyHand", action: #selector(quit), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Quit TinyPointer", action: #selector(quit), keyEquivalent: "q"))
         menu.items.forEach { $0.target = self }
         menu.delegate = self
     }
 
     private func setupSettings() {
         settings.applyToggleShortcut = { [weak self] s in
-            self?.apply(s, isToggle: true) ?? false
+            self?.apply(s, to: .toggle) ?? false
         }
         settings.applyClearShortcut = { [weak self] s in
-            self?.apply(s, isToggle: false) ?? false
+            self?.apply(s, to: .clear) ?? false
         }
-        settings.updater = Updater.isAvailable ? updater : nil
+        settings.applyToolbarShortcut = { [weak self] s in
+            self?.apply(s, to: .toolbar) ?? false
+        }
         settings.onRecording = { [weak self] recording in
             if recording {
                 self?.unregisterHotKeys()
@@ -130,53 +128,84 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         permissionItem?.isHidden = AXIsProcessTrusted()
     }
 
-    private func apply(_ s: Shortcut, isToggle: Bool) -> Bool {
-        unregisterHotKeys()
-        let old = isToggle ? Preferences.toggleShortcut : Preferences.clearShortcut
-        if isToggle {
-            Preferences.toggleShortcut = s
-        } else {
-            Preferences.clearShortcut = s
+    private enum ShortcutAction: CaseIterable {
+        case toggle, clear, toolbar
+
+        var shortcut: Shortcut {
+            get {
+                switch self {
+                case .toggle: return Preferences.toggleShortcut
+                case .clear: return Preferences.clearShortcut
+                case .toolbar: return Preferences.toolbarShortcut
+                }
+            }
+            nonmutating set {
+                switch self {
+                case .toggle: Preferences.toggleShortcut = newValue
+                case .clear: Preferences.clearShortcut = newValue
+                case .toolbar: Preferences.toolbarShortcut = newValue
+                }
+            }
         }
-        let ok = registerHotKeys()
-        if ok {
+    }
+
+    private func apply(_ s: Shortcut, to action: ShortcutAction) -> Bool {
+        unregisterHotKeys()
+        let old = action.shortcut
+        action.shortcut = s
+        if registerHotKeys() {
             return true
         }
         unregisterHotKeys()
-        if isToggle {
-            Preferences.toggleShortcut = old
-        } else {
-            Preferences.clearShortcut = old
-        }
+        action.shortcut = old
         registerHotKeys()
         return false
     }
 
+    private func perform(_ action: ShortcutAction) {
+        switch action {
+        case .toggle: overlay.toggle()
+        case .clear: overlay.clearInk()
+        case .toolbar: overlay.toggleToolbar()
+        }
+    }
+
     @discardableResult
     private func registerHotKeys() -> Bool {
-        guard toggleHotKey == nil, clearHotKey == nil else {
-            return true
+        hotKeysPaused = false
+        return syncHotKeys()
+    }
+
+    /// Registers each shortcut that should be live right now. A shortcut without ⌃, ⌥ or ⌘
+    /// (for example a lone ⇥) is only grabbed while the pointer is on, so the key keeps working
+    /// normally the rest of the time.
+    @discardableResult
+    private func syncHotKeys() -> Bool {
+        var ok = true
+        for action in ShortcutAction.allCases {
+            let s = action.shortcut
+            let wanted = !hotKeysPaused && (!s.isBare || overlay.isActive)
+            if wanted && hotKeys[action] == nil {
+                hotKeys[action] = HotKeyCenter.shared.register(keyCode: s.keyCode, modifiers: s.modifiers) { [weak self] in
+                    self?.perform(action)
+                }
+                if hotKeys[action] == nil {
+                    ok = false
+                }
+            } else if !wanted, let id = hotKeys[action] {
+                HotKeyCenter.shared.unregister(id)
+                hotKeys[action] = nil
+            }
         }
-        let t = Preferences.toggleShortcut
-        let c = Preferences.clearShortcut
-        toggleHotKey = HotKeyCenter.shared.register(keyCode: t.keyCode, modifiers: t.modifiers) { [weak self] in
-            self?.overlay.toggle()
-        }
-        clearHotKey = HotKeyCenter.shared.register(keyCode: c.keyCode, modifiers: c.modifiers) { [weak self] in
-            self?.overlay.clearInk()
-        }
-        return toggleHotKey != nil && clearHotKey != nil
+        return ok
     }
 
     private func unregisterHotKeys() {
-        if let id = toggleHotKey {
+        for id in hotKeys.values {
             HotKeyCenter.shared.unregister(id)
         }
-        if let id = clearHotKey {
-            HotKeyCenter.shared.unregister(id)
-        }
-        toggleHotKey = nil
-        clearHotKey = nil
+        hotKeys = [:]
+        hotKeysPaused = true
     }
 
     @objc private func toggle() {
@@ -201,11 +230,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         welcome.show()
     }
 
-    @objc private func checkForUpdates() {
-        overlay.exit()
-        updater.checkForUpdates()
-    }
-
     @objc private func quit() {
         overlay.deactivate()
         NSApp.terminate(nil)
@@ -227,13 +251,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let on = overlay.isActive
         let image = Bundle.main.image(forResource: on ? "menubar_on" : "menubar_off")
             ?? NSImage(systemSymbolName: on ? "hand.point.up.left.fill" : "hand.point.up.left",
-                       accessibilityDescription: "TinyHand")
+                       accessibilityDescription: "TinyPointer")
         image?.size = NSSize(width: 18, height: 18)
         image?.isTemplate = true
         statusItem.button?.image = image
         statusItem.button?.toolTip = overlay.isActive
-            ? "TinyHand is on — click to turn off, right-click for the menu"
-            : "TinyHand — click to turn on, right-click for the menu"
+            ? "TinyPointer is on — click to turn off, right-click for the menu"
+            : "TinyPointer — click to turn on, right-click for the menu"
     }
 
     private func editingMenu() -> NSMenu {
@@ -241,7 +265,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        appMenu.addItem(withTitle: "Quit TinyHand", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: "Quit TinyPointer", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
         main.addItem(appItem)
         let editItem = NSMenuItem()

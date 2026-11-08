@@ -21,6 +21,7 @@ final class OverlayController {
     private var dragEvents = 0
 
     private let toolbar = Toolbar()
+    private let magnifier = Magnifier()
     private var revealUntil = Date.distantPast
     private var normalCursor = false
     private var ownMenuOpen = false
@@ -95,6 +96,10 @@ final class OverlayController {
             CursorHider.reassert(urgent: true)
             self?.noteButtonEvent()
         }
+        inputTap.onRightClickExit = { [weak self] in
+            self?.exit()
+        }
+        inputTap.rightClickExits = Preferences.rightClickExits
         inputTap.onPassThroughPress = { [weak self] location in
             guard let screen = self?.currentScreen() else {
                 return
@@ -119,12 +124,14 @@ final class OverlayController {
             self?.exit()
             self?.onNeedsPermission?()
         }
+        armView.addLoupe(magnifier.layer)
         toolbar.select(armView.style)
         tapSound.enabled = soundOn
         toolbar.setSoundOn(soundOn)
         NotificationCenter.default.addObserver(forName: Preferences.changed, object: nil, queue: .main) { [weak self] _ in
             self?.syncSound()
             self?.inputTap.interactKey = Preferences.interactKey.cgFlags
+            self?.inputTap.rightClickExits = Preferences.rightClickExits
             self?.armView.updateInkColor()
             self?.tapSound.load(Preferences.tapSound)
             if let self = self, self.armView.style != PointerStyle.saved {
@@ -205,6 +212,15 @@ final class OverlayController {
         "held=\(armView.held) downPoint=\(downPoint != nil) drawing=\(armView.ink.isDrawing) strokes=\(inkStrokes)"
     }
 
+    /// Shows or hides the toolbar from its shortcut; when shown, it pops up for a moment.
+    func toggleToolbar() {
+        Preferences.showToolbar.toggle()
+        if Preferences.showToolbar {
+            revealUntil = Date().addingTimeInterval(3)
+        }
+        wake()
+    }
+
     func clearInk() {
         armView.ink.clear()
     }
@@ -263,7 +279,7 @@ final class OverlayController {
         runTimer(every: OverlayController.busyInterval)
 
         activity = ProcessInfo.processInfo.beginActivity(
-            options: [.userInitiated, .latencyCritical], reason: "TinyHand pointer is on")
+            options: [.userInitiated, .latencyCritical], reason: "TinyPointer pointer is on")
         let installed = inputTap.install()
         inputTap.interactKey = Preferences.interactKey.cgFlags
         inputTap.setActive(installed)
@@ -275,7 +291,7 @@ final class OverlayController {
         toolbar.setNeedsPermission(!installed)
         toolbar.show()
         revealUntil = Date().addingTimeInterval(3)
-        if installed && !UserDefaults.standard.bool(forKey: OverlayController.hintShownKey) {
+        if installed && Preferences.showToolbar && !UserDefaults.standard.bool(forKey: OverlayController.hintShownKey) {
             UserDefaults.standard.set(true, forKey: OverlayController.hintShownKey)
             var parts: [(key: String, text: String)] = [("Click", "to tap"), ("Drag", "to draw")]
             if Preferences.interactKey != .off {
@@ -311,6 +327,8 @@ final class OverlayController {
         armView.held = false
         downPoint = nil
         armView.ink.clear()
+        magnifier.reset()
+        armView.hiddenForZoom = false
         window.ignoresMouseEvents = true
         window.orderOut(nil)
         toolbar.hide()
@@ -328,7 +346,8 @@ final class OverlayController {
         let near = f.insetBy(dx: -80, dy: 0).union(f.offsetBy(dx: 0, dy: 90)).insetBy(dx: 0, dy: -10).contains(mouse)
         let needsPermission = !inputTap.isInstalled
         let drawing = armView.ink.isDrawing
-        toolbar.setRevealed(!drawing && (near || Date() < revealUntil || needsPermission))
+        let wantToolbar = Preferences.showToolbar || needsPermission
+        toolbar.setRevealed(wantToolbar && !drawing && (near || Date() < revealUntil || needsPermission))
 
         let menuLikely = !menuRects.isEmpty || ownMenuOpen || Date() < menuOpeningUntil
             || Date().timeIntervalSince(lastButtonEvent) < 2
@@ -560,6 +579,11 @@ final class OverlayController {
         }
 
         updateZones(mouse: mouse, screen: screen)
+        let zoomFlags = Preferences.zoomKey.cgFlags
+        let zoomHeld = !zoomFlags.isEmpty && !interactHeld
+            && CGEventSource.flagsState(.hidSystemState).contains(zoomFlags)
+        magnifier.update(held: zoomHeld, mouse: mouse, screen: screen)
+        armView.hiddenForZoom = magnifier.isShowing
         let overDock = DockArea.contains(OverlayController.cgPoint(mouse))
         let catchMouse = overDock && inputTap.isInstalled && !normalCursor && !interactHeld
         if window.ignoresMouseEvents == catchMouse {
@@ -574,7 +598,7 @@ final class OverlayController {
         let local = CGPoint(x: mouse.x - screen.frame.origin.x, y: mouse.y - screen.frame.origin.y)
         armView.aim(cursor: local)
         guard downPoint != nil else {
-            let busy = overDock || (!normalCursor && urgent) || CursorHider.isSettling
+            let busy = overDock || (!normalCursor && urgent) || CursorHider.isSettling || magnifier.isBusy
             updatePace(busy: busy)
             return
         }

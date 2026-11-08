@@ -7,8 +7,12 @@ struct Shortcut: Equatable {
     var modifiers: UInt32
     var display: String
 
-    static let toggleDefault = Shortcut(keyCode: UInt32(kVK_ANSI_H), modifiers: UInt32(controlKey | optionKey), display: "⌃⌥H")
-    static let clearDefault = Shortcut(keyCode: UInt32(kVK_ANSI_X), modifiers: UInt32(controlKey | optionKey), display: "⌃⌥X")
+    /// A shortcut without ⌃, ⌥ or ⌘, such as a lone ⇥. Only safe to grab while the pointer is on.
+    var isBare: Bool { modifiers & UInt32(controlKey | optionKey | cmdKey) == 0 }
+
+    static let toggleDefault = Shortcut(keyCode: UInt32(kVK_Tab), modifiers: UInt32(controlKey), display: "⌃⇥")
+    static let clearDefault = Shortcut(keyCode: UInt32(kVK_Tab), modifiers: 0, display: "⇥")
+    static let toolbarDefault = Shortcut(keyCode: UInt32(kVK_ANSI_T), modifiers: 0, display: "T")
 }
 
 enum InteractKey: String, CaseIterable {
@@ -42,11 +46,37 @@ enum InteractKey: String, CaseIterable {
     }
 }
 
-enum InkChoice: String, CaseIterable {
-    case match, red, orange, yellow, green, blue, purple, white, black
+/// A modifier key that is held down, for example to zoom while it is pressed.
+enum HoldKey: String, CaseIterable {
+    case shift, control, option, command, off
 
     var title: String {
         switch self {
+        case .shift: return "⇧ Shift"
+        case .control: return "⌃ Control"
+        case .option: return "⌥ Option"
+        case .command: return "⌘ Command"
+        case .off: return "Off"
+        }
+    }
+
+    var cgFlags: CGEventFlags {
+        switch self {
+        case .shift: return .maskShift
+        case .control: return .maskControl
+        case .option: return .maskAlternate
+        case .command: return .maskCommand
+        case .off: return []
+        }
+    }
+}
+
+enum InkChoice: String, CaseIterable {
+    case rainbow, match, red, orange, yellow, green, blue, purple, white, black
+
+    var title: String {
+        switch self {
+        case .rainbow: return "Rainbow"
         case .match: return "Match the pointer"
         case .red: return "Red"
         case .orange: return "Orange"
@@ -61,7 +91,7 @@ enum InkChoice: String, CaseIterable {
 
     var color: CGColor? {
         switch self {
-        case .match: return nil
+        case .rainbow, .match: return nil
         case .red: return Ink.red
         case .orange: return Ink.hex(0xFF8A00)
         case .yellow: return Ink.hex(0xFFCC00)
@@ -74,12 +104,15 @@ enum InkChoice: String, CaseIterable {
     }
 
     func resolved(for style: PointerStyle) -> CGColor {
-        color ?? style.inkColor
+        if self == .rainbow {
+            return Ink.red
+        }
+        return color ?? style.inkColor
     }
 }
 
 enum Preferences {
-    static let changed = Notification.Name("TinyHandPreferencesChanged")
+    static let changed = Notification.Name("TinyPointerPreferencesChanged")
     private static let defaults = UserDefaults.standard
 
     static var toggleShortcut: Shortcut {
@@ -90,6 +123,11 @@ enum Preferences {
     static var clearShortcut: Shortcut {
         get { loadShortcut("shortcut.clear") ?? .clearDefault }
         set { saveShortcut(newValue, "shortcut.clear") }
+    }
+
+    static var toolbarShortcut: Shortcut {
+        get { loadShortcut("shortcut.toolbar") ?? .toolbarDefault }
+        set { saveShortcut(newValue, "shortcut.toolbar") }
     }
 
     static let pointerSizeRange: ClosedRange<CGFloat> = 0.08...0.20
@@ -130,13 +168,80 @@ enum Preferences {
     }
 
     static var interactKey: InteractKey {
-        get { defaults.string(forKey: "interactKey").flatMap(InteractKey.init(rawValue:)) ?? .option }
+        get { defaults.string(forKey: "interactKey").flatMap(InteractKey.init(rawValue:)) ?? .control }
         set { set(newValue.rawValue, "interactKey") }
     }
 
     static var inkChoice: InkChoice {
         get { defaults.string(forKey: "inkChoice").flatMap(InkChoice.init(rawValue:)) ?? .match }
         set { set(newValue.rawValue, "inkChoice") }
+    }
+
+    static var showToolbar: Bool {
+        get { defaults.object(forKey: "showToolbar") as? Bool ?? true }
+        set { set(newValue, "showToolbar") }
+    }
+
+    static let rainbowStepChoices = Array(stride(from: 0, through: 90, by: 10))
+
+    /// How many degrees of hue each new rainbow line starts further along, until the drawing is cleared.
+    static var rainbowStep: Int {
+        get { min(90, max(0, defaults.object(forKey: "rainbowStep") as? Int ?? 60)) }
+        set { set(min(90, max(0, newValue)), "rainbowStep") }
+    }
+
+    /// A right click turns the pointer off, like Esc.
+    static var rightClickExits: Bool {
+        get { defaults.bool(forKey: "rightClickExits") }
+        set { set(newValue, "rightClickExits") }
+    }
+
+    static var zoomKey: HoldKey {
+        get { defaults.string(forKey: "zoomKey").flatMap(HoldKey.init(rawValue:)) ?? .shift }
+        set { set(newValue.rawValue, "zoomKey") }
+    }
+
+    static let loupeSizeRange = 120...480
+
+    /// Diameter of the zoom loupe in points.
+    static var loupeSize: Int {
+        get { min(480, max(120, defaults.object(forKey: "loupeSize") as? Int ?? 240)) }
+        set { set(min(480, max(120, newValue)), "loupeSize") }
+    }
+
+    static let zoomFactorChoices: [Double] = [1.5, 2, 2.5, 3, 4, 5, 6]
+
+    static var zoomFactor: Double {
+        get { defaults.object(forKey: "zoomFactor") as? Double ?? 3 }
+        set { set(newValue, "zoomFactor") }
+    }
+
+    /// Zoom in and out smoothly instead of jumping straight to the factor.
+    static var zoomAnimated: Bool {
+        get { defaults.object(forKey: "zoomAnimated") as? Bool ?? true }
+        set { set(newValue, "zoomAnimated") }
+    }
+
+    static let strokeSizeRange = 2...20
+
+    /// Width of drawn lines in points.
+    static var strokeSize: Int {
+        get { min(20, max(2, defaults.object(forKey: "strokeSize") as? Int ?? 6)) }
+        set { set(min(20, max(2, newValue)), "strokeSize") }
+    }
+
+    static let rainbowSpeedRange = 1...10
+
+    /// How fast a rainbow line runs through the hues, 1 (slowest) to 10. At 5 a full cycle takes 8000 points of line.
+    static var rainbowSpeed: Int {
+        get { min(10, max(1, defaults.object(forKey: "rainbowSpeed") as? Int ?? 5)) }
+        set { set(min(10, max(1, newValue)), "rainbowSpeed") }
+    }
+
+    /// Opacity of drawn lines in percent, 10 to 100, in steps of 10.
+    static var inkOpacity: Int {
+        get { min(100, max(10, defaults.object(forKey: "inkOpacity") as? Int ?? 100)) }
+        set { set(min(100, max(10, newValue)), "inkOpacity") }
     }
 
     static var showInkButton: Bool {
@@ -174,10 +279,30 @@ enum Preferences {
         }
     }
 
+    /// TinyPointer was TinyHand (bundle com.kamranahmed.tinyhand). Copies its settings once,
+    /// leaving out what belongs to that app alone (open-at-login setup, update checks).
+    static func migrateFromTinyHand() {
+        let flag = "migratedFromTinyHand"
+        guard !defaults.bool(forKey: flag) else {
+            return
+        }
+        defaults.set(true, forKey: flag)
+        guard let old = defaults.persistentDomain(forName: "com.kamranahmed.tinyhand") else {
+            return
+        }
+        var copied = 0
+        for (key, value) in old where key != "loginItemSetUp" && !key.hasPrefix("SU") && defaults.object(forKey: key) == nil {
+            defaults.set(value, forKey: key)
+            copied += 1
+        }
+        Log.write("copied \(copied) settings from TinyHand")
+    }
+
     static func resetAll() {
-        for key in ["shortcut.toggle", "shortcut.clear", "pointerSize", "showShadow", "fadeSeconds",
+        for key in ["shortcut.toggle", "shortcut.clear", "shortcut.toolbar", "pointerSize", "showShadow", "fadeSeconds",
                     "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "pinnedStyles", "pointerStyle",
-                    "inkChoice", "showInkButton", "tapSound"] {
+                    "inkChoice", "showInkButton", "tapSound", "showToolbar", "inkOpacity", "rainbowStep", "rainbowSpeed", "strokeSize",
+                    "zoomKey", "loupeSize", "rightClickExits", "zoomFactor", "zoomAnimated"] {
             defaults.removeObject(forKey: key)
         }
         NotificationCenter.default.post(name: changed, object: nil)

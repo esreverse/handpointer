@@ -3,7 +3,7 @@ import ApplicationServices
 import SwiftUI
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, pointers, appearance, drawing, sound, about
+    case general, pointers, drawing, zoom, sound, about
 
     var id: String { rawValue }
 
@@ -11,8 +11,8 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "General"
         case .pointers: return "Pointers"
-        case .appearance: return "Appearance"
         case .drawing: return "Drawing"
+        case .zoom: return "Zoom"
         case .sound: return "Sound"
         case .about: return "About"
         }
@@ -22,8 +22,8 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "gearshape.fill"
         case .pointers: return "hand.point.up.left.fill"
-        case .appearance: return "sparkles"
         case .drawing: return "pencil.tip"
+        case .zoom: return "plus.magnifyingglass"
         case .sound: return "speaker.wave.2.fill"
         case .about: return "info.circle.fill"
         }
@@ -33,8 +33,8 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .general: return Color(white: 0.55)
         case .pointers: return Color(red: 0.55, green: 0.42, blue: 0.95)
-        case .appearance: return Color(red: 0.95, green: 0.45, blue: 0.6)
         case .drawing: return Color(red: 0.96, green: 0.58, blue: 0.2)
+        case .zoom: return Color(red: 0.2, green: 0.72, blue: 0.68)
         case .sound: return Color(red: 0.2, green: 0.55, blue: 0.98)
         case .about: return Color(white: 0.45)
         }
@@ -48,8 +48,8 @@ final class SettingsModel: ObservableObject {
 
     var applyToggleShortcut: ((Shortcut) -> Bool)?
     var applyClearShortcut: ((Shortcut) -> Bool)?
+    var applyToolbarShortcut: ((Shortcut) -> Bool)?
     var onRecording: ((Bool) -> Void)?
-    var updater: Updater?
     @Published var shortcutError: String?
 
     private var observer: Any?
@@ -130,7 +130,7 @@ final class SettingsModel: ObservableObject {
             draftError = problem.message
         } catch {
             draft = nil
-            draftError = "TinyHand couldn't read that file."
+            draftError = "TinyPointer couldn't read that file."
         }
     }
 
@@ -157,7 +157,7 @@ final class SettingsModel: ObservableObject {
             handIdea = ""
             makingHand = false
         } catch {
-            draftError = "TinyHand couldn't save that hand."
+            draftError = "TinyPointer couldn't save that hand."
         }
     }
 
@@ -250,6 +250,7 @@ final class SettingsModel: ObservableObject {
         Preferences.resetAll()
         _ = applyToggleShortcut?(.toggleDefault)
         _ = applyClearShortcut?(.clearDefault)
+        _ = applyToolbarShortcut?(.toolbarDefault)
         shortcutError = nil
         pinMessage = nil
         revision += 1
@@ -334,7 +335,7 @@ struct SettingsView: View {
                 if let icon = NSImage(named: "AppIcon") ?? NSApp.applicationIconImage {
                     Image(nsImage: icon).resizable().frame(width: 22, height: 22)
                 }
-                Text("TinyHand").font(.system(size: 12, weight: .semibold))
+                Text("TinyPointer").font(.system(size: 12, weight: .semibold))
                 Spacer()
             }
             .padding(.horizontal, 10)
@@ -388,8 +389,8 @@ struct SettingsView: View {
             } else {
                 PointersPage(model: model)
             }
-        case .appearance: AppearancePage(model: model)
         case .drawing: DrawingPage(model: model)
+        case .zoom: ZoomPage(model: model)
         case .sound: SoundPage(model: model)
         case .about: AboutPage(model: model)
         }
@@ -416,8 +417,26 @@ private struct GeneralPage: View {
                 Row("Turn the pointer on or off") {
                     ShortcutField(shortcut: Preferences.toggleShortcut, model: model) { model.applyToggleShortcut?($0) ?? false }
                 }
-                Row("Clear the drawing") {
-                    ShortcutField(shortcut: Preferences.clearShortcut, model: model) { model.applyClearShortcut?($0) ?? false }
+                Row("Zoom while holding", detail: DrawingPage.zoomKeyDetail) {
+                    Picker("", selection: model.binding({ Preferences.zoomKey }, { Preferences.zoomKey = $0 })) {
+                        ForEach(HoldKey.allCases, id: \.self) { key in
+                            Text(key.title).tag(key)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                    .focusable(false)
+                }
+                Row("Clear the drawing", detail: "A single key like ⇥ works too, while the pointer is on.") {
+                    ShortcutField(shortcut: Preferences.clearShortcut, model: model, allowsBareKey: true) { model.applyClearShortcut?($0) ?? false }
+                }
+                Row("Right-click turns the pointer off", detail: "Like Esc: clears the drawing and ends the session.") {
+                    Toggle("", isOn: model.binding({ Preferences.rightClickExits }, { Preferences.rightClickExits = $0 }))
+                        .toggleStyle(.switch).labelsHidden().focusable(false)
+                }
+                Row("Show or hide the toolbar", detail: "A single key works too, while the pointer is on.") {
+                    ShortcutField(shortcut: Preferences.toolbarShortcut, model: model, allowsBareKey: true) { model.applyToolbarShortcut?($0) ?? false }
                 }
             }
             if let error = model.shortcutError {
@@ -449,15 +468,9 @@ private struct GeneralPage: View {
                 }
             }
             Card(title: "Startup") {
-                Row("Open TinyHand when you log in") {
+                Row("Open TinyPointer when you log in") {
                     Toggle("", isOn: model.binding({ Preferences.launchAtLogin }, { Preferences.launchAtLogin = $0 }))
                         .toggleStyle(.switch).labelsHidden().focusable(false)
-                }
-                if let updater = model.updater {
-                    Row("Check for updates automatically") {
-                        Toggle("", isOn: model.binding({ updater.automaticallyChecks }, { updater.automaticallyChecks = $0 }))
-                            .toggleStyle(.switch).labelsHidden().focusable(false)
-                    }
                 }
             }
         }
@@ -928,12 +941,56 @@ private struct EmptySlot: View {
     }
 }
 
-private struct AppearancePage: View {
+private struct DrawingPage: View {
+    static var zoomKeyDetail: String {
+        let key = Preferences.zoomKey
+        if key != .off && key.cgFlags == Preferences.interactKey.cgFlags {
+            return "Same key as “Hold to use the app”. Pick a different one."
+        }
+        return "Shows a loupe while the pointer is on."
+    }
+
     @ObservedObject var model: SettingsModel
+    private static let fadeChoices: [(String, Double)] = [
+        ("After 3 seconds", 3),
+        ("After 6 seconds", 6),
+        ("After 10 seconds", 10),
+        ("Keep until cleared", 0),
+    ]
+
+    private static var inkDetail: String {
+        switch Preferences.inkChoice {
+        case .rainbow: return "Rainbow colour"
+        case .match: return "Matches each pointer."
+        default: return "All pointers draw in \(Preferences.inkChoice.title.lowercased())."
+        }
+    }
 
     var body: some View {
-        Card(title: "Pointer") {
-            Row("Size") {
+        VStack(alignment: .leading, spacing: 22) {
+            inkCard
+            colorCard
+            toolbarCard
+        }
+    }
+
+    /// A slider that looks continuous (no tick marks) but snaps to whole steps,
+    /// because the stored value is rounded and read back.
+    private func snappingSlider<Low: View, High: View>(_ get: @escaping () -> Int, _ set: @escaping (Int) -> Void,
+                                                       in range: ClosedRange<Int>, step: Int, low: Low, high: High) -> some View {
+        HStack(spacing: 10) {
+            low.foregroundColor(.secondary)
+            Slider(value: model.binding({ Double(get()) }, { set(Int(($0 / Double(step)).rounded()) * step) }),
+                   in: Double(range.lowerBound)...Double(range.upperBound))
+                .frame(width: 180)
+                .focusable(false)
+            high.foregroundColor(.secondary)
+        }
+    }
+
+    private var inkCard: some View {
+        Card(title: "Ink") {
+            Row("Pointer size") {
                 HStack(spacing: 10) {
                     Image(systemName: "hand.point.up.left.fill").font(.system(size: 10)).foregroundColor(.secondary)
                     Slider(value: model.binding({ Double(Preferences.pointerSize) }, { Preferences.pointerSize = CGFloat($0) }),
@@ -943,26 +1000,38 @@ private struct AppearancePage: View {
                     Image(systemName: "hand.point.up.left.fill").font(.system(size: 16)).foregroundColor(.secondary)
                 }
             }
+            Row("Stroke size", detail: "\(Preferences.strokeSize) pt. Applies to new lines.") {
+                snappingSlider({ Preferences.strokeSize }, { Preferences.strokeSize = $0 },
+                               in: Preferences.strokeSizeRange, step: 1,
+                               low: Image(systemName: "scribble").font(.system(size: 10, weight: .light)),
+                               high: Image(systemName: "scribble").font(.system(size: 16, weight: .heavy)))
+            }
+            Row("Opacity", detail: "\(Preferences.inkOpacity)%. Applies to new lines.") {
+                snappingSlider({ Preferences.inkOpacity }, { Preferences.inkOpacity = $0 }, in: 10...100, step: 10,
+                               low: Image(systemName: "circle.fill").font(.system(size: 12)),
+                               high: Image(systemName: "circle.fill").font(.system(size: 16)))
+            }
             Row("Shadow under the pointer") {
                 Toggle("", isOn: model.binding({ Preferences.showShadow }, { Preferences.showShadow = $0 }))
                     .toggleStyle(.switch).labelsHidden().focusable(false)
             }
+            Row("Lines fade", detail: "Clear them any time with \(Preferences.clearShortcut.display).") {
+                Picker("", selection: model.binding({ Preferences.fadeSeconds }, { Preferences.fadeSeconds = $0 })) {
+                    ForEach(DrawingPage.fadeChoices, id: \.1) { choice in
+                        Text(choice.0).tag(choice.1)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .fixedSize()
+                .focusable(false)
+            }
         }
     }
-}
 
-private struct DrawingPage: View {
-    @ObservedObject var model: SettingsModel
-    private static let choices: [(String, Double)] = [
-        ("After 3 seconds", 3),
-        ("After 6 seconds", 6),
-        ("After 10 seconds", 10),
-        ("Keep until cleared", 0),
-    ]
-
-    var body: some View {
-        Card(title: "Ink") {
-            Row("Ink colour", detail: Preferences.inkChoice == .match ? "Matches each pointer." : "All pointers draw in \(Preferences.inkChoice.title.lowercased()).") {
+    private var colorCard: some View {
+        Card(title: "Color") {
+            Row("Ink colour", detail: DrawingPage.inkDetail) {
                 HStack(spacing: 8) {
                     ForEach(InkChoice.allCases, id: \.self) { choice in
                         InkSwatch(choice: choice, selected: Preferences.inkChoice == choice) {
@@ -972,21 +1041,94 @@ private struct DrawingPage: View {
                     }
                 }
             }
-            Row("Lines fade", detail: "Clear them any time with \(Preferences.clearShortcut.display).") {
-                Picker("", selection: model.binding({ Preferences.fadeSeconds }, { Preferences.fadeSeconds = $0 })) {
-                    ForEach(DrawingPage.choices, id: \.1) { choice in
-                        Text(choice.0).tag(choice.1)
-                    }
+            if Preferences.inkChoice == .rainbow {
+                Row("Rainbow speed", detail: "\(Preferences.rainbowSpeed) of 10. How quickly a line runs through the colours.") {
+                    snappingSlider({ Preferences.rainbowSpeed }, { Preferences.rainbowSpeed = $0 },
+                                   in: Preferences.rainbowSpeedRange, step: 1,
+                                   low: Image(systemName: "tortoise.fill").font(.system(size: 12)),
+                                   high: Image(systemName: "hare.fill").font(.system(size: 12)))
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .fixedSize()
-                .focusable(false)
+                Row("Rainbow shift per line", detail: "Each new line starts this much further around the colour wheel, until you clear.") {
+                    Picker("", selection: model.binding({ Preferences.rainbowStep }, { Preferences.rainbowStep = $0 })) {
+                        ForEach(Preferences.rainbowStepChoices, id: \.self) { value in
+                            Text("\(value)°").tag(value)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                    .focusable(false)
+                }
+            }
+        }
+    }
+
+    private var toolbarCard: some View {
+        Card(title: "Toolbar") {
+            Row("Show the toolbar", detail: "The bar at the bottom of the screen while TinyPointer is on.") {
+                Toggle("", isOn: model.binding({ Preferences.showToolbar }, { Preferences.showToolbar = $0 }))
+                    .toggleStyle(.switch).labelsHidden().focusable(false)
             }
             Row("Ink button in the toolbar", detail: "Change the colour while you present.") {
                 Toggle("", isOn: model.binding({ Preferences.showInkButton }, { Preferences.showInkButton = $0 }))
                     .toggleStyle(.switch).labelsHidden().focusable(false)
+                    .disabled(!Preferences.showToolbar)
             }
+        }
+    }
+}
+
+private struct ZoomPage: View {
+    @ObservedObject var model: SettingsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            if !CGPreflightScreenCaptureAccess() {
+                Card(title: "Permission") {
+                    Row("Screen Recording", detail: "Needed so the loupe can show a magnified view of the screen.") {
+                        PillButton(title: "Open Settings") {
+                            CGRequestScreenCaptureAccess()
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    }
+                }
+            }
+            Card(title: "Loupe") {
+                Row("Size", detail: "\(Preferences.loupeSize) pt across.") {
+                    HStack(spacing: 10) {
+                        Image(systemName: "magnifyingglass").font(.system(size: 10)).foregroundColor(.secondary)
+                        Slider(value: model.binding({ Double(Preferences.loupeSize) },
+                                                    { Preferences.loupeSize = Int(($0 / 20).rounded()) * 20 }),
+                               in: Double(Preferences.loupeSizeRange.lowerBound)...Double(Preferences.loupeSizeRange.upperBound))
+                            .frame(width: 180)
+                            .focusable(false)
+                        Image(systemName: "magnifyingglass").font(.system(size: 16)).foregroundColor(.secondary)
+                    }
+                }
+                Row("Zoom factor") {
+                    Picker("", selection: model.binding({ Preferences.zoomFactor }, { Preferences.zoomFactor = $0 })) {
+                        ForEach(Preferences.zoomFactorChoices, id: \.self) { value in
+                            Text(value == value.rounded() ? "\(Int(value))×" : "\(String(format: "%.1f", value))×").tag(value)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                    .focusable(false)
+                }
+                Row("Animate zoom", detail: Preferences.zoomAnimated ? "Zooms in smoothly while you hold the key and back out when you let go." : "Jumps straight to the zoom factor and back.") {
+                    Toggle("", isOn: model.binding({ Preferences.zoomAnimated }, { Preferences.zoomAnimated = $0 }))
+                        .toggleStyle(.switch).labelsHidden().focusable(false)
+                }
+            }
+            Text(Preferences.zoomKey == .off
+                 ? "Zoom is off. Pick a key under General › Shortcuts."
+                 : "Hold \(Preferences.zoomKey.title) while the pointer is on to zoom.")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 4)
         }
     }
 }
@@ -1044,7 +1186,10 @@ private struct InkSwatch: View {
     var body: some View {
         Button(action: action) {
             Group {
-                if let color = choice.color {
+                if choice == .rainbow {
+                    Circle().fill(LinearGradient(colors: [.red, .orange, .yellow, .green, .cyan, .blue, .purple],
+                                                 startPoint: .leading, endPoint: .trailing))
+                } else if let color = choice.color {
                     Circle().fill(Color(cgColor: color))
                         .overlay(Circle().strokeBorder(Color.primary.opacity(choice == .black ? 0.35 : 0.15), lineWidth: 1))
                 } else {
@@ -1112,20 +1257,18 @@ private struct AboutPage: View {
                     Image(nsImage: icon).resizable().frame(width: 72, height: 72)
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("TinyHand").font(.system(size: 18, weight: .bold))
+                    Text("TinyPointer").font(.system(size: 18, weight: .bold))
                     Text("Version \(version)").font(.system(size: 12)).foregroundColor(.secondary)
-                    Text("A tiny hand for your Mac. Free and open source.").font(.system(size: 12)).foregroundColor(.secondary)
+                    Text("A tiny hand on a stick for your Mac. Free and open source.").font(.system(size: 12)).foregroundColor(.secondary)
                 }
                 Spacer()
-                if let updater = model.updater {
-                    PillButton(title: "Check for Updates") { updater.checkForUpdates() }
-                }
             }
             Card(title: nil) {
-                LinkRow(title: "Website", detail: "tinyhand.app", url: "https://tinyhand.app")
-                LinkRow(title: "Source code", detail: "github.com/nilbuild/tinyhand", url: "https://github.com/nilbuild/tinyhand")
-                LinkRow(title: "Made by", detail: "@nilbuild on X", url: "https://x.com/nilbuild")
-                LinkRow(title: "License", detail: "MIT", url: "https://github.com/nilbuild/tinyhand/blob/main/LICENSE")
+                LinkRow(title: "Made by", detail: "Eric Singhartinger", url: "https://github.com/esreverse")
+                LinkRow(title: "Website", detail: "esreverse.com", url: "https://esreverse.com")
+                LinkRow(title: "Source code", detail: "github.com/esreverse/tinypointer", url: "https://github.com/esreverse/tinypointer")
+                LinkRow(title: "License", detail: "MIT", url: "https://github.com/esreverse/tinypointer/blob/main/LICENSE")
+                LinkRow(title: "Based on", detail: "TinyHand by Kamran Ahmed", url: "https://github.com/nilbuild/tinyhand")
             }
             HStack {
                 Spacer()
@@ -1403,7 +1546,7 @@ private struct MakeHandPage: View {
                     PlainField(placeholder: "My hand", text: Binding(get: { model.handName }, set: { model.handName = String($0.prefix(16)) }))
                         .frame(width: 220)
                 }
-                Text("It should show the back of the hand, like the ones in TinyHand. If you see the palm, try another image.")
+                Text("It should show the back of the hand, like the ones in TinyPointer. If you see the palm, try another image.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1508,10 +1651,12 @@ private struct PrimaryButton: View {
 private struct ShortcutField: NSViewRepresentable {
     let shortcut: Shortcut
     let model: SettingsModel
+    var allowsBareKey = false
     let apply: (Shortcut) -> Bool
 
     func makeNSView(context: Context) -> ShortcutRecorder {
         let r = ShortcutRecorder(shortcut: shortcut)
+        r.allowsBareKey = allowsBareKey
         r.onRecording = { model.onRecording?($0) }
         r.onChange = { s in
             let ok = apply(s)

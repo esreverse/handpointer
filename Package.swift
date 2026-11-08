@@ -2,17 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "TinyHand",
+    name: "TinyPointer",
     platforms: [.macOS(.v13)],
-    dependencies: [
-        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0"),
-    ],
     targets: [
         .executableTarget(
-            name: "TinyHand",
-            dependencies: [.product(name: "Sparkle", package: "Sparkle")],
-            path: "Sources/TinyHand",
-            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
+            name: "TinyPointer",
+            path: "Sources/TinyPointer"
         )
     ]
 )

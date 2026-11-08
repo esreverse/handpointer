@@ -20,7 +20,7 @@ final class ArmView: NSView {
 
     let ink = Ink()
     var held = false
-    var inkWidth: CGFloat { max(3, bounds.height * 0.0055) }
+    var inkWidth: CGFloat { CGFloat(Preferences.strokeSize) }
 
     private var pressAmount: CGFloat = 0
     private var gripX: CGFloat?
@@ -39,12 +39,22 @@ final class ArmView: NSView {
         return abs(target - gx) > 0.5
     }
 
+    /// Hides the hand while the zoom loupe is open.
+    var hiddenForZoom = false {
+        didSet {
+            if hiddenForZoom != oldValue {
+                let hidden = pointerHidden
+                pointerHidden = hidden
+            }
+        }
+    }
+
     var pointerHidden = false {
         didSet {
             CATransaction.begin()
             CATransaction.setDisableActions(true)
-            group.isHidden = pointerHidden || style == .laser
-            dotLayer.isHidden = pointerHidden || style != .laser
+            group.isHidden = pointerHidden || hiddenForZoom || style == .laser
+            dotLayer.isHidden = pointerHidden || hiddenForZoom || style != .laser
             CATransaction.commit()
         }
     }
@@ -83,6 +93,11 @@ final class ArmView: NSView {
             self?.handLenFrac = Preferences.pointerSize
             self?.showShadow = Preferences.showShadow
         }
+    }
+
+    /// Puts the zoom loupe above the ink and below the hand.
+    func addLoupe(_ loupe: CALayer) {
+        layer?.insertSublayer(loupe, below: group)
     }
 
     func updateInkColor() {

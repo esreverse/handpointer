@@ -9,11 +9,11 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     var applyClearShortcut: ((Shortcut) -> Bool)? {
         didSet { model.applyClearShortcut = applyClearShortcut }
     }
+    var applyToolbarShortcut: ((Shortcut) -> Bool)? {
+        didSet { model.applyToolbarShortcut = applyToolbarShortcut }
+    }
     var onRecording: ((Bool) -> Void)? {
         didSet { model.onRecording = onRecording }
-    }
-    var updater: Updater? {
-        didSet { model.updater = updater }
     }
 
     private var window: NSWindow?
@@ -68,7 +68,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
         let w = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 780, height: 560),
                          styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
                          backing: .buffered, defer: false)
-        w.title = "TinyHand Settings"
+        w.title = "TinyPointer Settings"
         w.titleVisibility = .hidden
         w.titlebarAppearsTransparent = true
         w.isReleasedWhenClosed = false
@@ -87,6 +87,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
 final class ShortcutRecorder: NSButton {
     var onChange: ((Shortcut) -> Bool)?
     var onRecording: ((Bool) -> Void)?
+    /// Accept a key without ⌃, ⌥ or ⌘.
+    var allowsBareKey = false
 
     private var shortcut: Shortcut
     private var monitor: Any?
@@ -280,7 +282,7 @@ final class ShortcutRecorder: NSButton {
             return
         }
         let flags = event.modifierFlags.intersection([.control, .option, .command, .shift])
-        guard !flags.intersection([.control, .option, .command]).isEmpty else {
+        guard allowsBareKey || !flags.intersection([.control, .option, .command]).isEmpty else {
             setLabel("Add ⌃, ⌥ or ⌘", dim: true)
             return
         }

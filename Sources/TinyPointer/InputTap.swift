@@ -7,12 +7,20 @@ final class InputTap {
     var onMouseUp: (() -> Void)?
     var onLeftDragged: (() -> Void)?
     var onPassThroughPress: ((CGPoint) -> Void)?
+    var onRightClickExit: (() -> Void)?
 
     private let lock = NSLock()
     private var _active = false
     private var _passThroughRects: [CGRect] = []
     private var _interactKey: CGEventFlags = []
     private var _interactPress = false
+    private var _rightClickExits = false
+
+    /// A right click turns the pointer off instead of tapping.
+    var rightClickExits: Bool {
+        get { lock.withLock { _rightClickExits } }
+        set { lock.withLock { _rightClickExits = newValue } }
+    }
 
     var passThroughRects: [CGRect] {
         get { lock.withLock { _passThroughRects } }
@@ -82,7 +90,7 @@ final class InputTap {
             ready.signal()
             CFRunLoopRun()
         }
-        thread.name = "TinyHand event tap"
+        thread.name = "TinyPointer event tap"
         thread.qualityOfService = .userInteractive
         thread.start()
         ready.wait()
@@ -176,6 +184,11 @@ final class InputTap {
         }
 
         switch type {
+        case .rightMouseDown where rightClickExits:
+            DispatchQueue.main.async { [weak self] in self?.onRightClickExit?() }
+            return nil
+        case .rightMouseUp where rightClickExits:
+            return nil
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             DispatchQueue.main.async { [weak self] in self?.onMouseDown?() }
             return nil
