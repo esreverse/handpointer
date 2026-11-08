@@ -95,39 +95,40 @@ final class ArmView: NSView {
         }
     }
 
-    /// Two concentric rings in the ink colour that grow from the tap point and fade out.
+    /// A filled circle in the ink colour that keeps growing from the tap point until it has
+    /// faded out completely.
     func ripple(at point: CGPoint) {
-        let radius: CGFloat = 38
-        for (i, delay) in [0.0, 0.12].enumerated() {
-            let ring = CAShapeLayer()
-            ring.path = CGPath(ellipseIn: CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2), transform: nil)
-            ring.fillColor = nil
-            ring.strokeColor = ink.color
-            ring.lineWidth = i == 0 ? 3 : 2
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            ring.position = point
-            ring.opacity = 0
-            layer?.insertSublayer(ring, below: group)
-            CATransaction.commit()
+        let radius: CGFloat = 40
+        let circle = CAShapeLayer()
+        circle.path = CGPath(ellipseIn: CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2), transform: nil)
+        circle.fillColor = ink.color
+        circle.strokeColor = nil
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        circle.position = point
+        circle.opacity = 0
+        layer?.insertSublayer(circle, below: group)
+        CATransaction.commit()
 
-            let grow = CABasicAnimation(keyPath: "transform.scale")
-            grow.fromValue = 0.15
-            grow.toValue = 1
-            let fade = CABasicAnimation(keyPath: "opacity")
-            fade.fromValue = 0.9
-            fade.toValue = 0
-            let anim = CAAnimationGroup()
-            anim.animations = [grow, fade]
-            anim.duration = 0.55
-            anim.beginTime = CACurrentMediaTime() + delay
-            anim.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            anim.fillMode = .both
-            anim.isRemovedOnCompletion = false
-            ring.add(anim, forKey: "ripple")
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay + 0.6) { [weak ring] in
-                ring?.removeFromSuperlayer()
-            }
+        let grow = CABasicAnimation(keyPath: "transform.scale")
+        grow.fromValue = 0.35
+        grow.toValue = 3
+        grow.duration = 0.8
+        grow.timingFunction = CAMediaTimingFunction(controlPoints: 0.15, 0.55, 0.4, 1)
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 1
+        fade.toValue = 0
+        fade.duration = 0.8
+        // Ease-out cubic: the alpha drops quickly at first, then trails off.
+        fade.timingFunction = CAMediaTimingFunction(controlPoints: 0.33, 1, 0.68, 1)
+        let anim = CAAnimationGroup()
+        anim.animations = [grow, fade]
+        anim.duration = 0.8
+        anim.fillMode = .both
+        anim.isRemovedOnCompletion = false
+        circle.add(anim, forKey: "ripple")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) { [weak circle] in
+            circle?.removeFromSuperlayer()
         }
     }
 

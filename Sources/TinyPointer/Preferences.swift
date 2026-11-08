@@ -243,7 +243,7 @@ enum Preferences {
     }
 
     static var tapSound: TapSoundChoice {
-        get { defaults.string(forKey: "tapSound").flatMap(TapSoundChoice.init(rawValue:)) ?? .thock }
+        get { defaults.string(forKey: "tapSound").flatMap(TapSoundChoice.init(rawValue:)) ?? .pop }
         set { set(newValue.rawValue, "tapSound") }
     }
 
@@ -288,9 +288,15 @@ enum Preferences {
         }
     }
 
-    /// Concentric rings grow and fade out where you tap.
+    /// Play the tap sound when you start drawing too, not only on a tap.
+    static var soundOnDraw: Bool {
+        get { defaults.bool(forKey: "soundOnDraw") }
+        set { set(newValue, "soundOnDraw") }
+    }
+
+    /// A circle grows and fades out where you tap.
     static var tapRipples: Bool {
-        get { defaults.bool(forKey: "tapRipples") }
+        get { defaults.object(forKey: "tapRipples") as? Bool ?? true }
         set { set(newValue, "tapRipples") }
     }
 
@@ -455,7 +461,7 @@ enum Preferences {
                     "shortcut.rainbowInk", "shortcut.matchInk", "pointerSize", "showShadow", "fadeSeconds",
                     "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "pinnedStyles", "pointerStyle",
                     "inkChoice", "showInkButton", "tapSound", "showToolbar", "inkOpacity", "rainbowStep", "rainbowSpeed", "strokeSize",
-                    "toolbarX", "toolbarY", "tapRipples", "zoomKey", "lastZoomKey", "loupeSize", "rightClickExits", "zoomFactor", "zoomAnimated"] {
+                    "toolbarX", "toolbarY", "tapRipples", "soundOnDraw", "zoomKey", "lastZoomKey", "loupeSize", "rightClickExits", "zoomFactor", "zoomAnimated"] {
             defaults.removeObject(forKey: key)
         }
         NotificationCenter.default.post(name: changed, object: nil)

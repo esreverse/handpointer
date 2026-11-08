@@ -69,12 +69,11 @@ final class OverlayController {
             }
             self.armView.press()
             self.armView.held = true
-            self.tapSound.play()
+            if Preferences.soundOnDraw {
+                self.tapSound.play()
+            }
             self.toolbar.hideHint()
             self.downPoint = self.localMouse()
-            if Preferences.tapRipples, let p = self.downPoint {
-                self.armView.ripple(at: p)
-            }
             self.dragEvents = 0
             Log.write("press at \(self.downPoint.map { "\(Int($0.x)),\(Int($0.y))" } ?? "?")")
             self.noteButtonEvent()
@@ -202,6 +201,14 @@ final class OverlayController {
         if let start = downPoint {
             let moved = localMouse().map { Int(hypot($0.x - start.x, $0.y - start.y)) } ?? -1
             Log.write("release, drag events=\(dragEvents) moved=\(moved)pt stroke drawn=\(armView.ink.isDrawing)")
+            // A tap, not a drawing: released (almost) where it was pressed.
+            let tapped = !armView.ink.isDrawing && moved >= 0 && moved <= 6
+            if tapped && Preferences.tapRipples {
+                armView.ripple(at: start)
+            }
+            if tapped && !Preferences.soundOnDraw {
+                tapSound.play()
+            }
         }
         buttonSeenDown = false
         armView.held = false

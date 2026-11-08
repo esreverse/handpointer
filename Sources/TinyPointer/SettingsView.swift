@@ -384,6 +384,9 @@ struct SettingsView: View {
                     .padding(.top, 6)
                 content
             }
+            // Always lay the page out at its natural height, so rows keep the same spacing
+            // whether or not the page is taller than the window.
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 28)
             .padding(.top, 48)
             .padding(.bottom, 28)
@@ -1138,7 +1141,7 @@ private struct DrawingPage: View {
 
     private var tapCard: some View {
         Card(title: "Tap") {
-            Row("Show tap ripples", detail: "Rings grow and fade out where you tap") {
+            Row("Show tap circle", detail: "A circle grows and fades out where you tap") {
                 Toggle("", isOn: model.binding({ Preferences.tapRipples }, { Preferences.tapRipples = $0 }))
                     .toggleStyle(.switch).labelsHidden().focusable(false)
             }
@@ -1280,6 +1283,17 @@ private struct SoundPage: View {
                     .padding(.horizontal, 4)
             }
             Card(title: nil) {
+                Row("Play the sound", detail: "When you tap, or also when you start drawing") {
+                    Picker("", selection: model.binding({ Preferences.soundOnDraw }, { Preferences.soundOnDraw = $0 })) {
+                        Text("On tap").tag(false)
+                        Text("On tap and draw").tag(true)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                    .focusable(false)
+                    .disabled(!on)
+                }
                 Row("Laser dot taps too", detail: "Off by default, for quiet pointing") {
                     Toggle("", isOn: model.binding({ Preferences.laserSound }, { Preferences.laserSound = $0 }))
                         .toggleStyle(.switch).labelsHidden().focusable(false)
@@ -1509,8 +1523,8 @@ private struct Row<Trailing: View>: View {
             trailing
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .frame(minHeight: 44)
+        .padding(.vertical, 12)
+        .frame(minHeight: 48)
     }
 }
 
