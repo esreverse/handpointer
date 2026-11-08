@@ -5,6 +5,22 @@ so write it for people using the app.
 
 
 
+## 1.2.0
+
+- Color pointer: A dot in your stroke's size, colour and opacity instead of a hand, always last in the toolbar
+- The toolbar, its tooltips and the zoom loupe use Liquid Glass on macOS 26 and later
+- Tooltips and a hover state for everything in the toolbar
+- Drawings stay below the toolbar
+- The drag handle is easier to grab; right-click it to put the toolbar back
+- Right-clicking the toolbar ends the session too, if that option is on
+- Rainbow: The tap circle uses the colour where your last line ended, and with a 0° shift the next line carries on from it
+- Next and previous pointer stop at the first and last one; hold the key to step through quickly
+- ⌘, opens Settings while the pointer is on
+- Automatic colour has its own "A" icon and comes first; the white glove draws in white
+- New defaults for a fresh install
+
+
+
 ## 1.1.0
 
 First release of TinyPointer, based on TinyHand 1.0.2 by Kamran Ahmed.

@@ -6,6 +6,8 @@ final class ArmView: NSView {
     private let handLayer = CALayer()
     private let dotLayer = CAShapeLayer()
     private let dotCore = CAShapeLayer()
+    /// The stroke pointer: a dot as big, as opaque and in the colour of the line you would draw.
+    private let brushLayer = CAShapeLayer()
 
     private(set) var style: PointerStyle = .lavender
     private var asset: HandAsset?
@@ -53,8 +55,9 @@ final class ArmView: NSView {
         didSet {
             CATransaction.begin()
             CATransaction.setDisableActions(true)
-            group.isHidden = pointerHidden || hiddenForZoom || style == .laser
+            group.isHidden = pointerHidden || hiddenForZoom || style == .laser || style == .stroke
             dotLayer.isHidden = pointerHidden || hiddenForZoom || style != .laser
+            brushLayer.isHidden = pointerHidden || hiddenForZoom || style != .stroke
             CATransaction.commit()
         }
     }
@@ -69,6 +72,8 @@ final class ArmView: NSView {
         root.addSublayer(group)
 
         root.addSublayer(dotLayer)
+        root.addSublayer(brushLayer)
+        brushLayer.strokeColor = nil
 
         group.masksToBounds = false
         group.addSublayer(rodLayer)
@@ -101,7 +106,7 @@ final class ArmView: NSView {
         let radius: CGFloat = 40
         let circle = CAShapeLayer()
         circle.path = CGPath(ellipseIn: CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2), transform: nil)
-        circle.fillColor = ink.color
+        circle.fillColor = ink.tapColor
         circle.strokeColor = nil
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -144,13 +149,13 @@ final class ArmView: NSView {
     func setStyle(_ newStyle: PointerStyle) {
         style = newStyle
         asset = newStyle.assetName.flatMap(HandAsset.load)
-        if newStyle != .laser && asset == nil {
+        if newStyle.assetName != nil && asset == nil {
             style = .laser
         }
         updateInkColor()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        if let a = asset, style != .laser {
+        if let a = asset, style.assetName != nil {
             group.anchorPoint = CGPoint(x: a.rodX, y: 0)
             displayImageHeight = 0
             updateDisplayImage(a)
@@ -184,6 +189,10 @@ final class ArmView: NSView {
 
         if style == .laser {
             aimLaser(cursor: cursor)
+            return
+        }
+        if style == .stroke {
+            aimStroke(cursor: cursor)
             return
         }
         guard let a = asset else {
@@ -246,6 +255,17 @@ final class ArmView: NSView {
 
     private func currentLift(_ screenH: CGFloat) -> CGFloat {
         liftFrac * screenH * (1 - 0.8 * pressAmount)
+    }
+
+    private func aimStroke(cursor: CGPoint) {
+        let r = CGFloat(Preferences.strokeSize) / 2
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        brushLayer.path = CGPath(ellipseIn: CGRect(x: -r, y: -r, width: 2 * r, height: 2 * r), transform: nil)
+        brushLayer.fillColor = ink.tapColor
+        brushLayer.opacity = Float(Preferences.inkOpacity) / 100
+        brushLayer.position = cursor
+        CATransaction.commit()
     }
 
     private func aimLaser(cursor: CGPoint) {

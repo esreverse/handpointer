@@ -5,6 +5,8 @@ final class Toolbar {
     var onToggleSound: (() -> Void)?
     var onExit: (() -> Void)?
     var onFixPermission: (() -> Void)?
+    /// The colour the next line will have (rainbow: where the last one ended), for the color pointer's icon.
+    var currentInkColor: (() -> CGColor)?
 
     private final class Panel: NSPanel {
         override var canBecomeKey: Bool { false }
@@ -28,8 +30,8 @@ final class Toolbar {
             NSColor(white: 1, alpha: 0.45).setFill()
             for col in 0..<2 {
                 for row in 0..<3 {
-                    let x = bounds.midX - 3 + CGFloat(col) * 6 - 1.25
-                    let y = bounds.midY - 6 + CGFloat(row) * 6 - 1.25
+                    let x = bounds.midX - 2.25 + CGFloat(col) * 4.5 - 1.25
+                    let y = bounds.midY - 4.5 + CGFloat(row) * 4.5 - 1.25
                     NSBezierPath(ovalIn: CGRect(x: x, y: y, width: 2.5, height: 2.5)).fill()
                 }
             }
@@ -93,12 +95,12 @@ final class Toolbar {
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         panel.alphaValue = 0
 
-        let background = NSVisualEffectView.darkGlass(radius: 20)
-        panel.contentView = background
+        let (glass, background) = Glass.make(radius: 20)
+        panel.contentView = glass
 
         stack.orientation = .horizontal
         stack.spacing = 6
-        stack.edgeInsets = NSEdgeInsets(top: 12, left: 14, bottom: 12, right: 14)
+        stack.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
         stack.translatesAutoresizingMaskIntoConstraints = false
         background.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -119,8 +121,8 @@ final class Toolbar {
         tray.level = panel.level
         tray.collectionBehavior = panel.collectionBehavior
         tray.alphaValue = 0
-        let trayBackground = NSVisualEffectView.darkGlass(radius: 14)
-        tray.contentView = trayBackground
+        let (trayGlass, trayBackground) = Glass.make(radius: 14)
+        tray.contentView = trayGlass
         trayStack.orientation = .horizontal
         trayStack.spacing = 2
         trayStack.edgeInsets = NSEdgeInsets(top: 5, left: 6, bottom: 5, right: 6)
@@ -134,13 +136,15 @@ final class Toolbar {
         ])
 
         let handle = Handle()
-        handle.toolTip = "Drag to move the toolbar. Right-click to put it back"
+        tips[handle] = "Drag to move – right-click to reset"
         handle.translatesAutoresizingMaskIntoConstraints = false
-        handle.widthAnchor.constraint(equalToConstant: 14).isActive = true
+        handle.widthAnchor.constraint(equalToConstant: 28).isActive = true
         handle.heightAnchor.constraint(equalToConstant: 40).isActive = true
         handle.onMoved = { [weak self] in self?.savePosition() }
         handle.onReset = { [weak self] in self?.resetPosition() }
         stack.insertArrangedSubview(handle, at: 0)
+        stack.setCustomSpacing(12, after: handle)
+        handleView = handle
 
         stack.addArrangedSubview(Toolbar.divider())
         // Ink colours sit right in the toolbar, one button each, instead of in a pop-up tray.
@@ -159,7 +163,7 @@ final class Toolbar {
         }
         soundButton = sound
         stack.addArrangedSubview(sound)
-        stack.addArrangedSubview(makeButton(symbol: "xmark", tip: "Exit  (Esc)") { [weak self] in
+        stack.addArrangedSubview(makeButton(symbol: "xmark", tip: "Exit (Esc)") { [weak self] in
             self?.onExit?()
         })
 
@@ -240,12 +244,17 @@ final class Toolbar {
         refreshInk()
     }
 
-    private func refreshInk() {
+    func refreshInk() {
+        if let b = styleButtons[.stroke] {
+            let color = currentInkColor?() ?? Ink.hex(0xFFFFFF)
+            b.image = Toolbar.padded(Toolbar.colorPointerIcon(color))
+        }
         let hidden = !Preferences.showInkButton
         var changed = false
         for (choice, b) in swatches {
-            b.image = choice == .rainbow ? Toolbar.hueDot() : choice.color.map(Toolbar.inkDot) ?? Toolbar.rainbowDot()
-            b.layer?.backgroundColor = choice == Preferences.inkChoice ? NSColor(white: 1, alpha: 0.2).cgColor : NSColor.clear.cgColor
+            b.image = choice == .rainbow ? Toolbar.rainbowDot() : choice.color.map(Toolbar.inkDot) ?? Toolbar.autoDot()
+            b.layer?.backgroundColor = choice == Preferences.inkChoice ? Toolbar.selectedColor
+                : (b === hovered ? Toolbar.hoverColor : NSColor.clear.cgColor)
             if b.isHidden != hidden {
                 b.isHidden = hidden
                 changed = true
@@ -267,9 +276,9 @@ final class Toolbar {
     }
 
     private func rebuildStyles() {
-        var styles = Preferences.pinnedStyles
+        var styles = PointerStyle.toolbarStyles
         if let c = current, !styles.contains(c) {
-            styles.append(c)
+            styles.insert(c, at: styles.count - 1)
         }
         if styles == shownStyles {
             return
@@ -277,6 +286,7 @@ final class Toolbar {
         shownStyles = styles
         for b in styleButtons.values {
             actions[b] = nil
+            tips[b] = nil
             b.removeFromSuperview()
         }
         styleButtons = [:]
@@ -290,15 +300,18 @@ final class Toolbar {
         if let c = current {
             highlight(c)
         }
+        refreshInk()
         resizeKeepingCenter()
     }
 
     func setSoundOn(_ on: Bool) {
         let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
         let name = on ? "speaker.wave.2.fill" : "speaker.slash.fill"
-        let tip = on ? "Sound on – click to mute" : "Sound off – click to unmute"
+        let tip = (on ? "Sound on – click to mute" : "Sound off – click to unmute") + " (\(Preferences.soundShortcut.display))"
         soundButton?.image = NSImage(systemSymbolName: name, accessibilityDescription: tip)?.withSymbolConfiguration(config)
-        soundButton?.toolTip = tip
+        if let b = soundButton {
+            tips[b] = tip
+        }
         soundButton?.contentTintColor = NSColor(white: 1, alpha: on ? 0.85 : 0.45)
     }
 
@@ -349,8 +362,8 @@ final class Toolbar {
         p.level = panel.level
         p.collectionBehavior = panel.collectionBehavior
         p.alphaValue = 0
-        let bg = NSVisualEffectView.darkGlass(radius: 12)
-        p.contentView = bg
+        let (hintGlass, bg) = Glass.make(radius: 12)
+        p.contentView = hintGlass
         let row = NSStackView()
         row.orientation = .horizontal
         row.spacing = 14
@@ -420,7 +433,8 @@ final class Toolbar {
 
     private func highlight(_ style: PointerStyle) {
         for (s, b) in styleButtons {
-            b.layer?.backgroundColor = s == style ? NSColor(white: 1, alpha: 0.18).cgColor : NSColor.clear.cgColor
+            b.layer?.backgroundColor = s == style ? Toolbar.selectedColor
+                : (b === hovered ? Toolbar.hoverColor : NSColor.clear.cgColor)
         }
     }
 
@@ -435,6 +449,143 @@ final class Toolbar {
     }
 
     private weak var placedScreen: NSScreen?
+    private weak var handleView: NSView?
+
+    // Own tooltips: the native ones never show while TinyPointer runs in the background
+    // with the cursor hidden, so the overlay tells the toolbar where the mouse is.
+    private var tips: [NSView: String] = [:]
+    private var tipPanel: Panel?
+
+    private let tipLabel = NSTextField(labelWithString: "")
+    private var tipContent: NSView?
+    private weak var hovered: NSView?
+    private var hoverSince = Date.distantPast
+    private static let tipDelay: TimeInterval = 0.5
+
+    private func tipText(for view: NSView) -> String? {
+        if let choice = swatches.first(where: { $0.value === view })?.key {
+            switch choice {
+            case .rainbow: return "Rainbow (\(Preferences.rainbowInkShortcut.display))"
+            case .match: return "Automatic colour – matches the pointer (\(Preferences.matchInkShortcut.display))"
+            default: return choice.title
+            }
+        }
+        return tips[view]
+    }
+
+    /// Call on every overlay tick with the mouse in screen coordinates.
+    func updateHover(mouse: CGPoint) {
+        let view = revealed ? tips.keys.first { v in
+            guard !v.isHidden, v.window === panel else {
+                return false
+            }
+            return panel.convertToScreen(v.convert(v.bounds, to: nil)).contains(mouse)
+        } : nil
+        if view !== hovered {
+            hovered = view
+            hoverSince = Date()
+            hideTip()
+            showHover(on: view)
+        }
+        guard let v = view, dragStart == nil, tipPanel?.isVisible != true,
+              Date().timeIntervalSince(hoverSince) >= Toolbar.tipDelay,
+              let text = tipText(for: v) else {
+            return
+        }
+        showTip(text, over: v)
+    }
+
+    private func showTip(_ text: String, over view: NSView) {
+        let p: Panel
+        if let existing = tipPanel {
+            p = existing
+        } else {
+            p = Panel(contentRect: CGRect(x: 0, y: 0, width: 100, height: 24),
+                      styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            p.isOpaque = false
+            p.backgroundColor = .clear
+            p.hasShadow = true
+            p.ignoresMouseEvents = true
+            p.level = panel.level
+            p.collectionBehavior = panel.collectionBehavior
+            let (tipGlass, bg) = Glass.make(radius: 8)
+            p.contentView = tipGlass
+            tipContent = bg
+            tipLabel.font = NSFont.systemFont(ofSize: 12)
+            tipLabel.textColor = .white
+            tipLabel.translatesAutoresizingMaskIntoConstraints = false
+            bg.addSubview(tipLabel)
+            NSLayoutConstraint.activate([
+                tipLabel.leadingAnchor.constraint(equalTo: bg.leadingAnchor, constant: 10),
+                tipLabel.trailingAnchor.constraint(equalTo: bg.trailingAnchor, constant: -10),
+                tipLabel.topAnchor.constraint(equalTo: bg.topAnchor, constant: 5),
+                tipLabel.bottomAnchor.constraint(equalTo: bg.bottomAnchor, constant: -5),
+            ])
+            tipPanel = p
+        }
+        tipLabel.stringValue = text
+        tipContent?.layoutSubtreeIfNeeded()
+        p.setContentSize(tipContent?.fittingSize ?? CGSize(width: 100, height: 24))
+        let r = panel.convertToScreen(view.convert(view.bounds, to: nil))
+        p.setFrameOrigin(CGPoint(x: r.midX - p.frame.width / 2, y: panel.frame.maxY + 6))
+        p.invalidateShadow()
+        p.orderFrontRegardless()
+    }
+
+    private static let hoverColor = NSColor(white: 1, alpha: 0.1).cgColor
+    private static let selectedColor = NSColor(white: 1, alpha: 0.2).cgColor
+
+    /// Paints the hovered item's own background (the glass would cover anything behind it);
+    /// the selected item keeps its stronger fill.
+    private func showHover(on view: NSView?) {
+        for v in tips.keys where v !== view {
+            if v.layer?.backgroundColor == Toolbar.hoverColor {
+                v.layer?.backgroundColor = NSColor.clear.cgColor
+            }
+        }
+        guard let v = view else {
+            return
+        }
+        v.wantsLayer = true
+        v.layer?.cornerRadius = 10
+        let current = v.layer?.backgroundColor
+        if current == nil || current?.alpha == 0 {
+            v.layer?.backgroundColor = Toolbar.hoverColor
+        }
+    }
+
+    private func hideTip() {
+        tipPanel?.orderOut(nil)
+    }
+    private var dragStart: (mouse: CGPoint, origin: CGPoint)?
+
+    /// The drag handle in screen coordinates, a little larger than drawn so it is easy to grab.
+    var handleFrame: CGRect? {
+        guard revealed, let h = handleView, let w = h.window else {
+            return nil
+        }
+        return w.convertToScreen(h.convert(h.bounds, to: nil)).insetBy(dx: -6, dy: -4)
+    }
+
+    /// Dragging driven by the overlay, which sees the clicks even when they never reach the panel.
+    func startDrag(at mouse: CGPoint) {
+        dragStart = (mouse, panel.frame.origin)
+        hideTip()
+    }
+
+    func continueDrag(to mouse: CGPoint) {
+        guard let d = dragStart else {
+            return
+        }
+        panel.setFrameOrigin(CGPoint(x: d.origin.x + mouse.x - d.mouse.x, y: d.origin.y + mouse.y - d.mouse.y))
+    }
+
+    func endDrag() {
+        if dragStart != nil {
+            savePosition()
+        }
+        dragStart = nil
+    }
 
     func place(on screen: NSScreen) {
         setInkOpen(false)
@@ -461,7 +612,7 @@ final class Toolbar {
         Preferences.toolbarPosition = CGPoint(x: f.midX - screen.frame.minX, y: f.minY - screen.frame.minY)
     }
 
-    private func resetPosition() {
+    func resetPosition() {
         Preferences.toolbarPosition = nil
         if let screen = placedScreen ?? panel.screen {
             place(on: screen)
@@ -474,6 +625,7 @@ final class Toolbar {
     }
 
     func hide() {
+        hideTip()
         setInkOpen(false)
         hideHint()
         revealed = false
@@ -488,6 +640,9 @@ final class Toolbar {
         revealed = value
         if !value {
             setInkOpen(false)
+            hideTip()
+            hovered = nil
+            showHover(on: nil)
         }
         panel.ignoresMouseEvents = !value
         guard animated else {
@@ -517,7 +672,7 @@ final class Toolbar {
         b.isBordered = false
         b.bezelStyle = .regularSquare
         b.imageScaling = .scaleProportionallyUpOrDown
-        b.toolTip = tip
+        tips[b] = tip
         b.setAccessibilityLabel(tip)
         b.wantsLayer = true
         b.layer?.cornerRadius = 10
@@ -561,17 +716,21 @@ final class Toolbar {
     }
 
     /// A dot with a horizontal gradient through all hues, for the rainbow ink.
-    private static func hueDot() -> NSImage {
+    /// Automatic colour: a white dot with a black "A".
+    private static func autoDot() -> NSImage {
         NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
             let c = CGPoint(x: rect.midX, y: rect.midY)
             let r: CGFloat = 13
             NSColor(white: 0, alpha: 0.35).setFill()
             NSBezierPath(ovalIn: CGRect(x: c.x - r - 1.5, y: c.y - r - 2.5, width: 2 * r + 3, height: 2 * r + 3)).fill()
-            let colors = stride(from: 0.0, through: 1.0, by: 1.0 / 6).map { NSColor(hue: $0, saturation: 1, brightness: 1, alpha: 1) }
-            let oval = NSBezierPath(ovalIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r))
-            NSGradient(colors: colors)?.draw(in: oval, angle: 0)
-            NSColor(white: 1, alpha: 0.35).setFill()
-            NSBezierPath(ovalIn: CGRect(x: c.x - r * 0.55, y: c.y + r * 0.15, width: r * 0.7, height: r * 0.5)).fill()
+            NSColor.white.setFill()
+            NSBezierPath(ovalIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)).fill()
+            let text = NSAttributedString(string: "A", attributes: [
+                .font: NSFont.systemFont(ofSize: 17, weight: .bold),
+                .foregroundColor: NSColor.black,
+            ])
+            let size = text.size()
+            text.draw(at: CGPoint(x: c.x - size.width / 2, y: c.y - size.height / 2))
             return true
         }
     }
@@ -595,13 +754,34 @@ final class Toolbar {
         }
     }
 
+    /// A thin vertical line with extra room on both sides (the stack's own spacing plus 6 pt).
     private static func divider() -> NSView {
-        let v = NSView()
-        v.wantsLayer = true
-        v.layer?.backgroundColor = NSColor(white: 1, alpha: 0.18).cgColor
-        v.widthAnchor.constraint(equalToConstant: 1).isActive = true
-        v.heightAnchor.constraint(equalToConstant: 24).isActive = true
-        return v
+        let box = NSView()
+        box.translatesAutoresizingMaskIntoConstraints = false
+        box.widthAnchor.constraint(equalToConstant: 13).isActive = true
+        box.heightAnchor.constraint(equalToConstant: 24).isActive = true
+        let line = NSView()
+        line.wantsLayer = true
+        line.layer?.backgroundColor = NSColor(white: 1, alpha: 0.18).cgColor
+        line.translatesAutoresizingMaskIntoConstraints = false
+        box.addSubview(line)
+        NSLayoutConstraint.activate([
+            line.widthAnchor.constraint(equalToConstant: 1),
+            line.centerXAnchor.constraint(equalTo: box.centerXAnchor),
+            line.topAnchor.constraint(equalTo: box.topAnchor),
+            line.bottomAnchor.constraint(equalTo: box.bottomAnchor),
+        ])
+        return box
+    }
+
+    /// The color pointer: a solid dot in the colour it will draw with.
+    static func colorPointerIcon(_ color: CGColor) -> NSImage {
+        NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
+            let c = CGPoint(x: rect.midX, y: rect.midY)
+            (NSColor(cgColor: color) ?? .white).setFill()
+            NSBezierPath(ovalIn: CGRect(x: c.x - 7, y: c.y - 7, width: 14, height: 14)).fill()
+            return true
+        }
     }
 
     /// Draws the image at 75% of its size, centred, so the selection frame has room around the hand.
@@ -620,6 +800,9 @@ final class Toolbar {
     static func icon(for style: PointerStyle) -> NSImage? {
         if let name = style.assetName {
             return HandAsset.thumbnail(name)
+        }
+        if style == .stroke {
+            return colorPointerIcon(Ink.hex(0xFFFFFF))
         }
         return NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
             let c = CGPoint(x: rect.midX, y: rect.midY)

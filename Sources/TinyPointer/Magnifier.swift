@@ -8,8 +8,13 @@ import ScreenCaptureKit
 /// windows are left out of the capture, so the hand, the ink and the toolbar never show up inside it.
 /// Capture starts when the key is first held and stops a few seconds after the loupe has closed.
 final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
-    /// Add this to the overlay view; it is positioned in that view's coordinates.
-    let layer = CALayer()
+    /// The loupe has its own window above the toolbar, so its ring can be Liquid Glass.
+    private let window: NSWindow
+    private let host = NSView()
+    private var glass: NSView?
+    /// Width of the Liquid Glass ring around the magnified view.
+    private static let ring: CGFloat = 10
+    private let layer = CALayer()
     private let content = CALayer()
 
     private var stream: SCStream?
@@ -31,11 +36,31 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
     var isBusy: Bool { target > 1 || zoom > 1.001 }
 
     /// True while the loupe is on screen.
-    var isShowing: Bool { !layer.isHidden }
+    var isShowing: Bool { window.isVisible }
 
     override init() {
+        window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 240, height: 240),
+                          styleMask: .borderless, backing: .buffered, defer: false)
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.ignoresMouseEvents = true
+        window.isReleasedWhenClosed = false
+        window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 3)
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         super.init()
-        layer.isHidden = true
+        host.layer = CALayer()
+        host.wantsLayer = true
+        host.layer?.addSublayer(layer)
+        if #available(macOS 26.0, *) {
+            let g = NSGlassEffectView()
+            g.style = .regular
+            g.contentView = host
+            window.contentView = g
+            glass = g
+        } else {
+            window.contentView = host
+        }
         layer.masksToBounds = false
         layer.shadowColor = NSColor.black.cgColor
         layer.shadowOpacity = 0.35
@@ -98,13 +123,14 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
     }
 
     private func setHidden(_ hidden: Bool) {
-        guard layer.isHidden != hidden else {
+        guard window.isVisible == hidden else {
             return
         }
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        layer.isHidden = hidden
-        CATransaction.commit()
+        if hidden {
+            window.orderOut(nil)
+        } else {
+            window.orderFrontRegardless()
+        }
     }
 
     private func layout(mouse: CGPoint, screen: NSScreen, visible: Bool, factor: CGFloat) {
@@ -126,17 +152,27 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
         // Fade the ring and shadow in with the zoom, so the loupe grows out of the screen.
         let progress = factor > 1 ? min(1, max(0, (zoom - 1) / (factor - 1))) : 1
 
+        let ring = glass == nil ? 0 : Magnifier.ring
+        window.setFrame(CGRect(x: mouse.x - size / 2, y: mouse.y - size / 2, width: size, height: size), display: false)
+        if #available(macOS 26.0, *), let g = glass as? NSGlassEffectView {
+            g.cornerRadius = size / 2
+        }
+        // Grow out of the screen: ring and shadow fade in with the zoom.
+        window.alphaValue = glass == nil ? 1 : progress
+
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        layer.isHidden = false
-        layer.frame = CGRect(x: local.x - size / 2, y: local.y - size / 2, width: size, height: size)
+        layer.frame = CGRect(x: 0, y: 0, width: size, height: size).insetBy(dx: ring, dy: ring)
+        let inner = layer.bounds.width
         layer.shadowPath = CGPath(ellipseIn: layer.bounds, transform: nil)
-        layer.shadowOpacity = Float(0.35 * progress)
+        layer.shadowOpacity = glass == nil ? Float(0.35 * progress) : 0
         content.frame = layer.bounds
-        content.cornerRadius = size / 2
+        content.cornerRadius = inner / 2
+        content.borderWidth = glass == nil ? 2 : 0
         content.borderColor = NSColor(white: 0, alpha: progress).cgColor
         content.contentsRect = CGRect(x: u, y: v, width: w, height: h)
         CATransaction.commit()
+        setHidden(false)
     }
 
     // MARK: - Capture

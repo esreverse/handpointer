@@ -163,7 +163,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private enum ShortcutAction: CaseIterable {
-        case toggle, clear, toolbar, rainbowInk, matchInk, nextPointer, previousPointer, sound
+        case toggle, clear, toolbar, rainbowInk, matchInk, nextPointer, previousPointer, sound, settings
+
+        /// Only grabbed while the pointer is on: ⌘, opens Settings then, as in any app,
+        /// without taking ⌘, away from other apps the rest of the time.
+        var onlyWhileActive: Bool { self == .settings || shortcut.isBare }
 
         var shortcut: Shortcut {
             get {
@@ -176,6 +180,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 case .nextPointer: return Preferences.nextPointerShortcut
                 case .previousPointer: return Preferences.previousPointerShortcut
                 case .sound: return Preferences.soundShortcut
+                case .settings: return Shortcut(keyCode: UInt32(kVK_ANSI_Comma), modifiers: UInt32(cmdKey), display: "⌘,")
                 }
             }
             nonmutating set {
@@ -188,6 +193,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 case .nextPointer: Preferences.nextPointerShortcut = newValue
                 case .previousPointer: Preferences.previousPointerShortcut = newValue
                 case .sound: Preferences.soundShortcut = newValue
+                case .settings: break
                 }
             }
         }
@@ -206,6 +212,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return false
     }
 
+    private var repeatTimer: Timer?
+
+    /// Holding the next/previous pointer key repeats it, like a held key in a text field.
+    private func startRepeat(_ action: ShortcutAction) {
+        repeatTimer?.invalidate()
+        let code = CGKeyCode(action.shortcut.keyCode)
+        let start = Date()
+        repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] timer in
+            guard CGEventSource.keyState(.combinedSessionState, key: code), self?.overlay.isActive == true else {
+                timer.invalidate()
+                return
+            }
+            if Date().timeIntervalSince(start) >= 0.4 {
+                self?.overlay.cyclePointer(by: action == .nextPointer ? 1 : -1)
+            }
+        }
+    }
+
     private func perform(_ action: ShortcutAction) {
         switch action {
         case .toggle: overlay.toggle()
@@ -213,9 +237,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .toolbar: overlay.toggleToolbar()
         case .rainbowInk: Preferences.inkChoice = .rainbow
         case .matchInk: Preferences.inkChoice = .match
-        case .nextPointer: overlay.cyclePointer(by: 1)
-        case .previousPointer: overlay.cyclePointer(by: -1)
+        case .nextPointer:
+            overlay.cyclePointer(by: 1)
+            startRepeat(action)
+        case .previousPointer:
+            overlay.cyclePointer(by: -1)
+            startRepeat(action)
         case .sound: overlay.soundOn.toggle()
+        case .settings: openSettings()
         }
     }
 
@@ -233,7 +262,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         var ok = true
         for action in ShortcutAction.allCases {
             let s = action.shortcut
-            let wanted = !hotKeysPaused && (!s.isBare || overlay.isActive)
+            let wanted = !hotKeysPaused && (!action.onlyWhileActive || overlay.isActive)
             if wanted && hotKeys[action] == nil {
                 hotKeys[action] = HotKeyCenter.shared.register(keyCode: s.keyCode, modifiers: s.modifiers) { [weak self] in
                     self?.perform(action)

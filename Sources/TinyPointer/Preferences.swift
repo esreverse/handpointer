@@ -71,7 +71,7 @@ struct Shortcut: Equatable {
     }
 
     static let toggleDefault = Shortcut(keyCode: UInt32(kVK_Tab), modifiers: UInt32(controlKey), display: "⌃⇥")
-    static let clearDefault = Shortcut(keyCode: UInt32(kVK_Tab), modifiers: 0, display: "⇥")
+    static let clearDefault = Shortcut.letter("Q", fallback: kVK_ANSI_Q)
     static let toolbarDefault = Shortcut(keyCode: UInt32(kVK_ANSI_H), modifiers: 0, display: "H")
     static let rainbowInkDefault = Shortcut.letter("R", fallback: kVK_ANSI_R)
     static let matchInkDefault = Shortcut.letter("A", fallback: kVK_ANSI_A)
@@ -137,7 +137,7 @@ enum HoldKey: String, CaseIterable {
 }
 
 enum InkChoice: String, CaseIterable {
-    case rainbow, match, red, orange, yellow, green, blue, purple, white, black
+    case match, rainbow, red, orange, yellow, green, blue, purple, white, black
 
     var title: String {
         switch self {
@@ -223,7 +223,7 @@ enum Preferences {
     static let pointerSizeRange: ClosedRange<CGFloat> = 0.08...0.20
 
     static var pointerSize: CGFloat {
-        get { (defaults.object(forKey: "pointerSize") as? Double).map { CGFloat($0) } ?? 0.13 }
+        get { (defaults.object(forKey: "pointerSize") as? Double).map { CGFloat($0) } ?? 0.135 }
         set { set(Double(newValue), "pointerSize") }
     }
 
@@ -233,12 +233,12 @@ enum Preferences {
     }
 
     static var fadeSeconds: Double {
-        get { defaults.object(forKey: "fadeSeconds") as? Double ?? 3 }
+        get { defaults.object(forKey: "fadeSeconds") as? Double ?? 0 }
         set { set(newValue, "fadeSeconds") }
     }
 
     static var handSound: Bool {
-        get { defaults.object(forKey: "sound.hands") as? Bool ?? true }
+        get { defaults.object(forKey: "sound.hands") as? Bool ?? false }
         set { set(newValue, "sound.hands") }
     }
 
@@ -263,7 +263,7 @@ enum Preferences {
     }
 
     static var inkChoice: InkChoice {
-        get { defaults.string(forKey: "inkChoice").flatMap(InkChoice.init(rawValue:)) ?? .match }
+        get { defaults.string(forKey: "inkChoice").flatMap(InkChoice.init(rawValue:)) ?? .rainbow }
         set { set(newValue.rawValue, "inkChoice") }
     }
 
@@ -309,18 +309,18 @@ enum Preferences {
 
     /// How many degrees of hue each new rainbow line starts further along, until the drawing is cleared.
     static var rainbowStep: Int {
-        get { min(90, max(0, defaults.object(forKey: "rainbowStep") as? Int ?? 60)) }
+        get { min(90, max(0, defaults.object(forKey: "rainbowStep") as? Int ?? 0)) }
         set { set(min(90, max(0, newValue)), "rainbowStep") }
     }
 
     /// A right click turns the pointer off, like Esc.
     static var rightClickExits: Bool {
-        get { defaults.bool(forKey: "rightClickExits") }
+        get { defaults.object(forKey: "rightClickExits") as? Bool ?? true }
         set { set(newValue, "rightClickExits") }
     }
 
     static var zoomKey: HoldKey {
-        get { defaults.string(forKey: "zoomKey").flatMap(HoldKey.init(rawValue:)) ?? .off }
+        get { defaults.string(forKey: "zoomKey").flatMap(HoldKey.init(rawValue:)) ?? .shift }
         set { set(newValue.rawValue, "zoomKey") }
     }
 
@@ -362,14 +362,14 @@ enum Preferences {
 
     /// Diameter of the zoom loupe in points.
     static var loupeSize: Int {
-        get { min(480, max(120, defaults.object(forKey: "loupeSize") as? Int ?? 240)) }
+        get { min(480, max(120, defaults.object(forKey: "loupeSize") as? Int ?? 340)) }
         set { set(min(480, max(120, newValue)), "loupeSize") }
     }
 
     static let zoomFactorRange = 1.5...6.0
 
     static var zoomFactor: Double {
-        get { min(6, max(1.5, defaults.object(forKey: "zoomFactor") as? Double ?? 3)) }
+        get { min(6, max(1.5, defaults.object(forKey: "zoomFactor") as? Double ?? 4)) }
         set { set(min(6, max(1.5, newValue)), "zoomFactor") }
     }
 
@@ -383,7 +383,7 @@ enum Preferences {
 
     /// Width of drawn lines in points.
     static var strokeSize: Int {
-        get { min(20, max(2, defaults.object(forKey: "strokeSize") as? Int ?? 6)) }
+        get { min(20, max(2, defaults.object(forKey: "strokeSize") as? Int ?? 8)) }
         set { set(min(20, max(2, newValue)), "strokeSize") }
     }
 
@@ -391,13 +391,13 @@ enum Preferences {
 
     /// How fast a rainbow line runs through the hues, 1 (slowest) to 10. At 5 a full cycle takes 8000 points of line.
     static var rainbowSpeed: Int {
-        get { min(10, max(1, defaults.object(forKey: "rainbowSpeed") as? Int ?? 5)) }
+        get { min(10, max(1, defaults.object(forKey: "rainbowSpeed") as? Int ?? 4)) }
         set { set(min(10, max(1, newValue)), "rainbowSpeed") }
     }
 
     /// Opacity of drawn lines in percent, 10 to 100, in steps of 10.
     static var inkOpacity: Int {
-        get { min(100, max(10, defaults.object(forKey: "inkOpacity") as? Int ?? 100)) }
+        get { min(100, max(10, defaults.object(forKey: "inkOpacity") as? Int ?? 70)) }
         set { set(min(100, max(10, newValue)), "inkOpacity") }
     }
 

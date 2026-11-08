@@ -813,9 +813,9 @@ private struct PickerCell: View {
             .frame(width: 62, height: 58)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.primary.opacity(hovering && !added ? 0.08 : 0))
+                    // Same as the toolbar: in the toolbar 20 %, hover 10 %.
+                    .fill(Color.primary.opacity(added ? 0.2 : (hovering ? 0.1 : 0)))
             )
-            .opacity(added ? 0.35 : 1)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -1294,7 +1294,7 @@ private struct SoundPage: View {
                     .focusable(false)
                     .disabled(!on)
                 }
-                Row("Laser dot taps too", detail: "Off by default, for quiet pointing") {
+                Row("Color pointer & laser dot tap too", detail: "Off by default, for quiet pointing") {
                     Toggle("", isOn: model.binding({ Preferences.laserSound }, { Preferences.laserSound = $0 }))
                         .toggleStyle(.switch).labelsHidden().focusable(false)
                         .disabled(!on)
@@ -1316,13 +1316,15 @@ private struct InkSwatch: View {
         Button(action: action) {
             Group {
                 if choice == .rainbow {
-                    Circle().fill(LinearGradient(colors: [.red, .orange, .yellow, .green, .cyan, .blue, .purple],
-                                                 startPoint: .leading, endPoint: .trailing))
+                    Circle().fill(AngularGradient(colors: [.red, .yellow, .green, .blue, .purple, .red], center: .center))
                 } else if let color = choice.color {
                     Circle().fill(Color(cgColor: color))
                         .overlay(Circle().strokeBorder(Color.primary.opacity(choice == .black ? 0.35 : 0.15), lineWidth: 1))
                 } else {
-                    Circle().fill(AngularGradient(colors: [.red, .yellow, .green, .blue, .purple, .red], center: .center))
+                    // Automatic colour: white with a black "A".
+                    Circle().fill(Color.white)
+                        .overlay(Circle().strokeBorder(Color.primary.opacity(0.15), lineWidth: 1))
+                        .overlay(Text("A").font(.system(size: 11, weight: .bold)).foregroundColor(.black))
                 }
             }
             .frame(width: 20, height: 20)

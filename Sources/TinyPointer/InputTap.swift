@@ -8,10 +8,15 @@ final class InputTap {
     var onLeftDragged: (() -> Void)?
     var onPassThroughPress: ((CGPoint) -> Void)?
     var onRightClickExit: (() -> Void)?
+    /// Right-click on a capture rect (the toolbar's drag handle).
+    var onCaptureRightClick: (() -> Void)?
+    private var swallowRightUp = false
 
     private let lock = NSLock()
     private var _active = false
     private var _passThroughRects: [CGRect] = []
+    private var _captureRects: [CGRect] = []
+    private var _rightExitRects: [CGRect] = []
     private var _interactKey: CGEventFlags = []
     private var _interactPress = false
     private var _rightClickExits = false
@@ -25,6 +30,19 @@ final class InputTap {
     var passThroughRects: [CGRect] {
         get { lock.withLock { _passThroughRects } }
         set { lock.withLock { _passThroughRects = newValue } }
+    }
+
+    /// Areas inside the pass-through rects whose clicks the overlay handles itself
+    /// (the toolbar's drag handle), in the same CG coordinates.
+    var captureRects: [CGRect] {
+        get { lock.withLock { _captureRects } }
+        set { lock.withLock { _captureRects = newValue } }
+    }
+
+    /// Pass-through areas where a right-click still turns the pointer off (the toolbar).
+    var rightExitRects: [CGRect] {
+        get { lock.withLock { _rightExitRects } }
+        set { lock.withLock { _rightExitRects = newValue } }
     }
 
     private var active: Bool {
@@ -166,9 +184,23 @@ final class InputTap {
             return Unmanaged.passUnretained(event)
         }
 
+        // Right-click on the toolbar (but not its drag handle) ends the session like elsewhere.
+        if type == .rightMouseDown, rightClickExits,
+           rightExitRects.contains(where: { $0.contains(event.location) }),
+           !captureRects.contains(where: { $0.contains(event.location) }) {
+            swallowRightUp = true
+            DispatchQueue.main.async { [weak self] in self?.onRightClickExit?() }
+            return nil
+        }
+        if type == .rightMouseUp, swallowRightUp {
+            swallowRightUp = false
+            return nil
+        }
+
         switch type {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             passingThrough = passThroughRects.contains { $0.contains(event.location) }
+                && !captureRects.contains { $0.contains(event.location) }
             if passingThrough {
                 let location = event.location
                 DispatchQueue.main.async { [weak self] in self?.onPassThroughPress?(location) }
@@ -184,6 +216,14 @@ final class InputTap {
         }
 
         switch type {
+        case .rightMouseDown where captureRects.contains { $0.contains(event.location) }:
+            // Right-click on the drag handle only resets the toolbar; it never ends the session.
+            swallowRightUp = true
+            DispatchQueue.main.async { [weak self] in self?.onCaptureRightClick?() }
+            return nil
+        case .rightMouseUp where swallowRightUp:
+            swallowRightUp = false
+            return nil
         case .rightMouseDown where rightClickExits:
             DispatchQueue.main.async { [weak self] in self?.onRightClickExit?() }
             return nil

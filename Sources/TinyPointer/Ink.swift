@@ -37,6 +37,18 @@ final class Ink {
     private var cycle: CGFloat = 8000
     /// Rainbow lines drawn since the last clear; each one starts `Preferences.rainbowStep` degrees further.
     private var rainbowLines = 0
+    /// Hue where the last rainbow line was lifted, in degrees. Taps use it, and with a shift of 0°
+    /// the next line carries on from it.
+    private var lastRainbowHue: CGFloat = 0
+
+    /// Colour for the tap circle: with rainbow ink the colour where the last line ended
+    /// (red before the first one), otherwise the ink colour.
+    var tapColor: CGColor {
+        guard Preferences.inkChoice == .rainbow else {
+            return color
+        }
+        return Ink.rainbowColor(at: 0, startHue: lastRainbowHue)
+    }
     private var width: CGFloat = 0
 
     var isDrawing: Bool { stroke != nil }
@@ -59,7 +71,12 @@ final class Ink {
         self.width = width
         rainbow = Preferences.inkChoice == .rainbow
         if rainbow {
-            startHue = CGFloat((rainbowLines * Preferences.rainbowStep) % 360)
+            if Preferences.rainbowStep == 0 {
+                // No shift: keep drawing in the colour the last line ended with.
+                startHue = lastRainbowHue
+            } else {
+                startHue = CGFloat((rainbowLines * Preferences.rainbowStep) % 360)
+            }
             cycle = Ink.rainbowCycle
             rainbowLines += 1
             totalLength = 0
@@ -143,6 +160,10 @@ final class Ink {
         guard let s = stroke else {
             return
         }
+        if rainbow {
+            let turns = startHue / 360 + totalLength / cycle
+            lastRainbowHue = (turns - turns.rounded(.down)) * 360
+        }
         stroke = nil
         piece = nil
         points = []
@@ -155,6 +176,7 @@ final class Ink {
 
     func clear() {
         rainbowLines = 0
+        lastRainbowHue = 0
         stroke = nil
         piece = nil
         points = []

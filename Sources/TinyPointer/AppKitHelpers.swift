@@ -7,6 +7,26 @@ extension NSView {
     }
 }
 
+enum Glass {
+    /// A rounded glass background: Apple's Liquid Glass on macOS 26 and later, the dark
+    /// frosted glass before that. Put `container` in the window and add content to `content`.
+    static func make(radius: CGFloat) -> (container: NSView, content: NSView) {
+        if #available(macOS 26.0, *) {
+            let glass = NSGlassEffectView()
+            glass.style = .regular
+            glass.cornerRadius = radius
+            // Dark and slightly tinted, so the white icons stay readable on light backgrounds too.
+            glass.appearance = NSAppearance(named: .darkAqua)
+            glass.tintColor = NSColor(white: 0, alpha: 0.3)
+            let content = NSView()
+            glass.contentView = content
+            return (glass, content)
+        }
+        let view = NSVisualEffectView.darkGlass(radius: radius)
+        return (view, view)
+    }
+}
+
 extension NSVisualEffectView {
     static func darkGlass(radius: CGFloat) -> NSVisualEffectView {
         let view = NSVisualEffectView()

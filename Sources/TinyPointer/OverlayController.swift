@@ -8,6 +8,9 @@ final class OverlayController {
     }
 
     private let window: OverlayWindow
+    /// The ink lives in its own window below the toolbar, so the toolbar stays on top of drawings
+    /// while the hand (in `window`) stays on top of everything.
+    private let inkWindow: OverlayWindow
     private let armView: ArmView
     private let inputTap = InputTap()
     private let tapSound = TapSound()
@@ -22,6 +25,7 @@ final class OverlayController {
 
     private let toolbar = Toolbar()
     private let magnifier = Magnifier()
+    private var draggingToolbar = false
     private var revealUntil = Date.distantPast
     private var normalCursor = false
     private var ownMenuOpen = false
@@ -60,11 +64,34 @@ final class OverlayController {
         window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 2)
         window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
 
+        inkWindow = OverlayWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
+        inkWindow.isOpaque = false
+        inkWindow.backgroundColor = .clear
+        inkWindow.hasShadow = false
+        inkWindow.ignoresMouseEvents = true
+        inkWindow.isReleasedWhenClosed = false
+        inkWindow.level = .screenSaver
+        inkWindow.collectionBehavior = window.collectionBehavior
+
         armView = ArmView(frame: NSRect(origin: .zero, size: frame.size))
+        let inkView = NSView(frame: NSRect(origin: .zero, size: frame.size))
+        inkView.layer = CALayer()
+        inkView.wantsLayer = true
+        inkView.autoresizingMask = [.width, .height]
+        inkView.layer?.addSublayer(armView.ink.layer)
+        inkWindow.contentView = inkView
         window.contentView = armView
 
         inputTap.onMouseDown = { [weak self] in
             guard let self = self else {
+                return
+            }
+            // The toolbar's drag handle: move the toolbar (right-click puts it back) instead of drawing.
+            let mouse = NSEvent.mouseLocation
+            if let handle = self.toolbar.handleFrame, handle.contains(mouse) {
+                self.toolbar.startDrag(at: mouse)
+                self.draggingToolbar = true
+                self.noteButtonEvent()
                 return
             }
             self.armView.press()
@@ -79,11 +106,20 @@ final class OverlayController {
             self.noteButtonEvent()
         }
         inputTap.onLeftDragged = { [weak self] in
+            if let self = self, self.draggingToolbar {
+                self.toolbar.continueDrag(to: NSEvent.mouseLocation)
+                return
+            }
             self?.dragEvents += 1
             self?.drag()
             self?.wake()
         }
         inputTap.onMouseUp = { [weak self] in
+            if let self = self, self.draggingToolbar {
+                self.draggingToolbar = false
+                self.toolbar.endDrag()
+                return
+            }
             self?.release()
             self?.noteButtonEvent()
         }
@@ -96,6 +132,10 @@ final class OverlayController {
             self?.armView.held = false
             self?.guardCursorUntil = Date().addingTimeInterval(2)
             CursorHider.reassert(urgent: true)
+            self?.noteButtonEvent()
+        }
+        inputTap.onCaptureRightClick = { [weak self] in
+            self?.toolbar.resetPosition()
             self?.noteButtonEvent()
         }
         inputTap.onRightClickExit = { [weak self] in
@@ -113,6 +153,12 @@ final class OverlayController {
             self?.noteButtonEvent()
         }
 
+        toolbar.currentInkColor = { [weak self] in
+            guard let self = self else {
+                return Ink.hex(0xFFFFFF)
+            }
+            return Preferences.inkChoice == .match ? Ink.hex(0xFFFFFF) : self.armView.ink.tapColor
+        }
         toolbar.onPick = { [weak self] style in
             self?.pick(style)
         }
@@ -126,7 +172,6 @@ final class OverlayController {
             self?.exit()
             self?.onNeedsPermission?()
         }
-        armView.addLoupe(magnifier.layer)
         toolbar.select(armView.style)
         tapSound.enabled = soundOn
         toolbar.setSoundOn(soundOn)
@@ -142,10 +187,13 @@ final class OverlayController {
         }
     }
 
+    /// The laser dot and the color pointer share the "taps too" sound setting.
+    private var usesDotSound: Bool { armView.style == .laser || armView.style == .stroke }
+
     var soundOn: Bool {
-        get { armView.style == .laser ? Preferences.laserSound : Preferences.handSound }
+        get { usesDotSound ? Preferences.laserSound : Preferences.handSound }
         set {
-            if armView.style == .laser {
+            if usesDotSound {
                 Preferences.laserSound = newValue
             } else {
                 Preferences.handSound = newValue
@@ -161,14 +209,17 @@ final class OverlayController {
         syncSound()
     }
 
-    /// Switches to the next (or previous) pointer in the toolbar, wrapping around.
+    /// Switches to the next (or previous) pointer in the toolbar, stopping at the first and last one.
     func cyclePointer(by step: Int) {
-        let styles = Preferences.pinnedStyles
+        let styles = PointerStyle.toolbarStyles
         guard !styles.isEmpty else {
             return
         }
-        let index = styles.firstIndex(of: armView.style) ?? (step > 0 ? -1 : 0)
-        let next = ((index + step) % styles.count + styles.count) % styles.count
+        let index = styles.firstIndex(of: armView.style) ?? (step > 0 ? -1 : styles.count)
+        let next = min(max(index + step, 0), styles.count - 1)
+        guard styles[next] != armView.style else {
+            return
+        }
         pick(styles[next])
         wake()
     }
@@ -214,6 +265,7 @@ final class OverlayController {
         armView.held = false
         downPoint = nil
         armView.ink.end()
+        toolbar.refreshInk()
     }
 
     var style: PointerStyle { armView.style }
@@ -295,6 +347,7 @@ final class OverlayController {
 
         CursorHider.hide()
         tick()
+        inkWindow.orderFrontRegardless()
         window.orderFrontRegardless()
 
         stillSince = Date()
@@ -353,6 +406,7 @@ final class OverlayController {
         armView.hiddenForZoom = false
         window.ignoresMouseEvents = true
         window.orderOut(nil)
+        inkWindow.orderOut(nil)
         toolbar.hide()
         normalCursor = false
         armView.pointerHidden = false
@@ -412,6 +466,9 @@ final class OverlayController {
             rects.append(OverlayController.cgRect(f))
         }
         inputTap.passThroughRects = rects
+        toolbar.updateHover(mouse: mouse)
+        inputTap.captureRects = toolbar.handleFrame.map { [OverlayController.cgRect($0)] } ?? []
+        inputTap.rightExitRects = toolbar.revealed ? [OverlayController.cgRect(f)] : []
     }
 
     private func setEscEnabled(_ enabled: Bool) {
@@ -593,6 +650,7 @@ final class OverlayController {
             }
             armView.ink.clear()
             window.setFrame(screen.frame, display: false)
+            inkWindow.setFrame(screen.frame, display: false)
             armView.frame = NSRect(origin: .zero, size: screen.frame.size)
             toolbar.place(on: screen)
         }
@@ -609,7 +667,8 @@ final class OverlayController {
         magnifier.update(held: zoomHeld, mouse: mouse, screen: screen)
         armView.hiddenForZoom = magnifier.isShowing
         let overDock = DockArea.contains(OverlayController.cgPoint(mouse))
-        let catchMouse = overDock && inputTap.isInstalled && !normalCursor && !interactHeld
+        let overToolbar = toolbar.revealed && toolbar.frame.contains(mouse)
+        let catchMouse = overDock && !overToolbar && inputTap.isInstalled && !normalCursor && !interactHeld
         if window.ignoresMouseEvents == catchMouse {
             window.ignoresMouseEvents = !catchMouse
         }
