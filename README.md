@@ -1,8 +1,6 @@
 <img src="./.github/banner.jpg" alt="TinyPointer: point, tap and draw on your Mac" />
 
-<p>
-  <a href="https://github.com/esreverse/tinypointer/releases/latest/download/TinyPointer.dmg"><img src="./.github/download-button.svg" alt="Download for macOS" width="400" /></a>
-</p>
+# [Download for macOS](https://github.com/esreverse/tinypointer/releases/latest/download/TinyPointer.dmg)
 
 <p>
   <a href="https://github.com/esreverse/tinypointer/releases/latest"><img src="https://img.shields.io/github/v/release/esreverse/tinypointer?display_name=tag&sort=semver" alt="Latest release" /></a>
