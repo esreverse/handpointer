@@ -511,7 +511,7 @@ private struct ShortcutsPage: View {
                     .fixedSize()
                     .focusable(false)
                 }
-                Row("Draw arrows", detail: "A straight line with an arrowhead instead of a free line") {
+                Row("Draw arrows", detail: "Hold while drawing to end the line with an arrowhead") {
                     Picker("", selection: model.binding({ Preferences.arrowKey }, { Preferences.arrowKey = $0 })) {
                         ForEach(HoldKey.allCases, id: \.self) { key in
                             Text(key.title).tag(key)
