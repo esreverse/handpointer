@@ -46,35 +46,51 @@ Nothing underneath gets clicked, and one key puts your normal cursor back.
 
 <table>
   <tr>
-    <td width="50%">
+    <td width="50%" valign="top">
       <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="./.github/screenshots/settings-drawing-dark.png" />
-        <img src="./.github/screenshots/settings-drawing-light.png" alt="Draw settings: pointer and stroke size, opacity, ink colour and rainbow" />
+        <source media="(prefers-color-scheme: dark)" srcset="./.github/screenshots/settings-general-dark.png" />
+        <img src="./.github/screenshots/settings-general-light.png" alt="General settings: open at login, updates and permissions" />
       </picture>
-      <p align="center"><b>Draw</b> – size, opacity, colours, rainbow</p>
+      <p align="left"><b>General</b> – startup, updates, permissions</p>
     </td>
-    <td width="50%">
+    <td width="50%" valign="top">
       <picture>
         <source media="(prefers-color-scheme: dark)" srcset="./.github/screenshots/settings-shortcuts-dark.png" />
         <img src="./.github/screenshots/settings-shortcuts-light.png" alt="Shortcut settings" />
       </picture>
-      <p align="center"><b>Shortcuts</b> – every action on a key</p>
+      <p align="left"><b>Shortcuts</b> – every action on a key</p>
     </td>
   </tr>
   <tr>
-    <td width="50%">
+    <td width="50%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="./.github/screenshots/settings-drawing-dark.png" />
+        <img src="./.github/screenshots/settings-drawing-light.png" alt="Draw settings: pointer and stroke size, opacity, ink colour and rainbow" />
+      </picture>
+      <p align="left"><b>Draw</b> – size, opacity, colours, rainbow</p>
+    </td>
+    <td width="50%" valign="top">
       <picture>
         <source media="(prefers-color-scheme: dark)" srcset="./.github/screenshots/settings-zoom-dark.png" />
         <img src="./.github/screenshots/settings-zoom-light.png" alt="Zoom settings: hold key, loupe size and zoom factor" />
       </picture>
-      <p align="center"><b>Zoom</b> – loupe size, factor, animation</p>
+      <p align="left"><b>Zoom</b> – loupe size, factor, animation</p>
     </td>
-    <td width="50%">
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
       <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="./.github/screenshots/settings-general-dark.png" />
-        <img src="./.github/screenshots/settings-general-light.png" alt="General settings: open at login and permissions" />
+        <source media="(prefers-color-scheme: dark)" srcset="./.github/screenshots/settings-pointers-dark.png" />
+        <img src="./.github/screenshots/settings-pointers-light.png" alt="Pointer settings: the pointers in your toolbar and your own hands" />
       </picture>
-      <p align="center"><b>General</b> – startup, updates, permissions</p>
+      <p align="left"><b>Pointers</b> – your toolbar and your own hands</p>
+    </td>
+    <td width="50%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="./.github/screenshots/settings-sound-dark.png" />
+        <img src="./.github/screenshots/settings-sound-light.png" alt="Sound settings: tap sounds and when they play" />
+      </picture>
+      <p align="left"><b>Sound</b> – tap sounds and when they play</p>
     </td>
   </tr>
 </table>

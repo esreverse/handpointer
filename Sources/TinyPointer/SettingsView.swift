@@ -1842,5 +1842,9 @@ private func pointerIcon(_ style: PointerStyle) -> NSImage? {
     guard let name = style.assetName else {
         return Toolbar.icon(for: style)
     }
-    return HandAsset.cachedThumbnail(name) ?? blankIcon
+    if let cached = HandAsset.cachedThumbnail(name) {
+        return cached
+    }
+    // Screenshots render in one pass, so load the thumbnail right away there.
+    return Permissions.screenshot ? HandAsset.thumbnail(name) ?? blankIcon : blankIcon
 }
