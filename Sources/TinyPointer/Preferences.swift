@@ -320,7 +320,7 @@ enum Preferences {
     }
 
     static var zoomKey: HoldKey {
-        get { defaults.string(forKey: "zoomKey").flatMap(HoldKey.init(rawValue:)) ?? .shift }
+        get { defaults.string(forKey: "zoomKey").flatMap(HoldKey.init(rawValue:)) ?? .off }
         set { set(newValue.rawValue, "zoomKey") }
     }
 
