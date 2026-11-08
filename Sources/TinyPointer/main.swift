@@ -1,4 +1,10 @@
 import AppKit
+import CoreText
+
+// Fonts shipped in Resources (Playpen Sans for the number stamps).
+for url in Bundle.main.urls(forResourcesWithExtension: "ttf", subdirectory: nil) ?? [] {
+    CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+}
 import ApplicationServices
 
 if let idx = CommandLine.arguments.firstIndex(of: "--render-test") {

@@ -500,6 +500,28 @@ private struct ShortcutsPage: View {
                 Row("Clear drawing", detail: "A single key works too, while the pointer is on") {
                     ShortcutField(shortcut: Preferences.clearShortcut, model: model, allowsBareKey: true) { model.applyClearShortcut?($0) ?? false }
                 }
+                Row("Stamp numbers", detail: "Hold and click to place 1, 2, 3 … Drag one to move it, click it to remove it") {
+                    Picker("", selection: model.binding({ Preferences.stampKey }, { Preferences.stampKey = $0 })) {
+                        ForEach(HoldKey.allCases, id: \.self) { key in
+                            Text(key.title).tag(key)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                    .focusable(false)
+                }
+                Row("Draw arrows", detail: "A straight line with an arrowhead instead of a free line") {
+                    Picker("", selection: model.binding({ Preferences.arrowKey }, { Preferences.arrowKey = $0 })) {
+                        ForEach(HoldKey.allCases, id: \.self) { key in
+                            Text(key.title).tag(key)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                    .focusable(false)
+                }
                 Row("Use rainbow colour", detail: "A single key works too, while the pointer is on") {
                     ShortcutField(shortcut: Preferences.rainbowInkShortcut, model: model, allowsBareKey: true) { model.applyRainbowInkShortcut?($0) ?? false }
                 }
@@ -1094,6 +1116,13 @@ private struct DrawingPage: View {
                 snappingSlider({ Preferences.inkOpacity }, { Preferences.inkOpacity = $0 }, in: 10...100, step: 10,
                                low: Image(systemName: "circle.fill").font(.system(size: 12)).opacity(0.2),
                                high: Image(systemName: "circle.fill").font(.system(size: 12)))
+            }
+            Row("Smoothing", detail: "\(Preferences.strokeSmoothing.title) – evens out shaky lines") {
+                IconSlider(value: model.binding({ Double(Preferences.strokeSmoothing.rawValue) },
+                                                { Preferences.strokeSmoothing = StrokeSmoothing(rawValue: Int($0.rounded())) ?? .off }),
+                           range: 0...Double(StrokeSmoothing.allCases.count - 1),
+                           low: Image(systemName: "scribble").font(.system(size: 14)),
+                           high: Image(systemName: "line.diagonal").font(.system(size: 14)))
             }
             Row("Shadow under the pointer") {
                 Toggle("", isOn: model.binding({ Preferences.showShadow }, { Preferences.showShadow = $0 }))

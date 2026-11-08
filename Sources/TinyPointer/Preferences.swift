@@ -111,6 +111,31 @@ enum InteractKey: String, CaseIterable {
     }
 }
 
+/// How much drawn lines are smoothed while you draw.
+enum StrokeSmoothing: Int, CaseIterable {
+    case off, veryLight, light, medium
+
+    var title: String {
+        switch self {
+        case .off: return "Off"
+        case .veryLight: return "Very light"
+        case .light: return "Light"
+        case .medium: return "Medium"
+        }
+    }
+
+    /// How many neighbours on each side are averaged into each point of the line
+    /// (points are about 3 pt apart, so medium smooths over roughly ±30 pt).
+    var window: Int {
+        switch self {
+        case .off: return 0
+        case .veryLight: return 2
+        case .light: return 5
+        case .medium: return 10
+        }
+    }
+}
+
 /// A modifier key that is held down, for example to zoom while it is pressed.
 enum HoldKey: String, CaseIterable {
     case shift, control, option, command, off
@@ -238,7 +263,7 @@ enum Preferences {
     }
 
     static var handSound: Bool {
-        get { defaults.object(forKey: "sound.hands") as? Bool ?? false }
+        get { defaults.object(forKey: "sound.hands") as? Bool ?? true }
         set { set(newValue, "sound.hands") }
     }
 
@@ -258,7 +283,7 @@ enum Preferences {
     }
 
     static var interactKey: InteractKey {
-        get { defaults.string(forKey: "interactKey").flatMap(InteractKey.init(rawValue:)) ?? .control }
+        get { defaults.string(forKey: "interactKey").flatMap(InteractKey.init(rawValue:)) ?? .command }
         set { set(newValue.rawValue, "interactKey") }
     }
 
@@ -294,6 +319,11 @@ enum Preferences {
         set { set(newValue, "soundOnDraw") }
     }
 
+    static var strokeSmoothing: StrokeSmoothing {
+        get { StrokeSmoothing(rawValue: defaults.object(forKey: "strokeSmoothing") as? Int ?? 2) ?? .light }
+        set { set(newValue.rawValue, "strokeSmoothing") }
+    }
+
     /// A circle grows and fades out where you tap.
     static var tapRipples: Bool {
         get { defaults.object(forKey: "tapRipples") as? Bool ?? true }
@@ -317,6 +347,18 @@ enum Preferences {
     static var rightClickExits: Bool {
         get { defaults.object(forKey: "rightClickExits") as? Bool ?? true }
         set { set(newValue, "rightClickExits") }
+    }
+
+    /// Hold this key and click to stamp numbered circles: 1, 2, 3 …
+    static var stampKey: HoldKey {
+        get { defaults.string(forKey: "stampKey").flatMap(HoldKey.init(rawValue:)) ?? .option }
+        set { set(newValue.rawValue, "stampKey") }
+    }
+
+    /// Hold this key while drawing for a straight arrow instead of a free line.
+    static var arrowKey: HoldKey {
+        get { defaults.string(forKey: "arrowKey").flatMap(HoldKey.init(rawValue:)) ?? .control }
+        set { set(newValue.rawValue, "arrowKey") }
     }
 
     static var zoomKey: HoldKey {
@@ -358,12 +400,12 @@ enum Preferences {
         }
     }
 
-    static let loupeSizeRange = 120...480
+    static let loupeSizeRange = 200...800
 
     /// Diameter of the zoom loupe in points.
     static var loupeSize: Int {
-        get { min(480, max(120, defaults.object(forKey: "loupeSize") as? Int ?? 340)) }
-        set { set(min(480, max(120, newValue)), "loupeSize") }
+        get { min(800, max(200, defaults.object(forKey: "loupeSize") as? Int ?? 600)) }
+        set { set(min(800, max(200, newValue)), "loupeSize") }
     }
 
     static let zoomFactorRange = 1.5...6.0
@@ -461,7 +503,7 @@ enum Preferences {
                     "shortcut.rainbowInk", "shortcut.matchInk", "pointerSize", "showShadow", "fadeSeconds",
                     "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "pinnedStyles", "pointerStyle",
                     "inkChoice", "showInkButton", "tapSound", "showToolbar", "inkOpacity", "rainbowStep", "rainbowSpeed", "strokeSize",
-                    "toolbarX", "toolbarY", "tapRipples", "soundOnDraw", "zoomKey", "lastZoomKey", "loupeSize", "rightClickExits", "zoomFactor", "zoomAnimated"] {
+                    "toolbarX", "toolbarY", "tapRipples", "soundOnDraw", "strokeSmoothing", "zoomKey", "lastZoomKey", "arrowKey", "stampKey", "loupeSize", "rightClickExits", "zoomFactor", "zoomAnimated"] {
             defaults.removeObject(forKey: key)
         }
         NotificationCenter.default.post(name: changed, object: nil)

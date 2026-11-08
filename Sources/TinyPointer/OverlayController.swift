@@ -26,6 +26,8 @@ final class OverlayController {
     private let toolbar = Toolbar()
     private let magnifier = Magnifier()
     private var draggingToolbar = false
+    /// A press made while the zoom key is held: it does nothing at all, down, drag or up.
+    private var ignoringPress = false
     private var revealUntil = Date.distantPast
     private var normalCursor = false
     private var ownMenuOpen = false
@@ -88,6 +90,23 @@ final class OverlayController {
             }
             // The toolbar's drag handle: move the toolbar (right-click puts it back) instead of drawing.
             let mouse = NSEvent.mouseLocation
+            // While zooming, clicks and drags never do anything.
+            let zoomFlags = Preferences.zoomKey.cgFlags
+            if !zoomFlags.isEmpty, CGEventSource.flagsState(.hidSystemState).contains(zoomFlags) {
+                self.ignoringPress = true
+                return
+            }
+            // Number stamp: place it where the button goes down; dragging moves it.
+            let stampFlags = Preferences.stampKey.cgFlags
+            if !stampFlags.isEmpty, CGEventSource.flagsState(.hidSystemState).contains(stampFlags),
+               let p = self.localMouse() {
+                self.armView.press()
+                self.armView.held = true
+                self.armView.ink.pressStamp(at: p)
+                self.tapSound.play()
+                self.noteButtonEvent()
+                return
+            }
             if let handle = self.toolbar.handleFrame, handle.contains(mouse) {
                 self.toolbar.startDrag(at: mouse)
                 self.draggingToolbar = true
@@ -106,6 +125,15 @@ final class OverlayController {
             self.noteButtonEvent()
         }
         inputTap.onLeftDragged = { [weak self] in
+            if self?.ignoringPress == true {
+                return
+            }
+            if let self = self, self.armView.ink.isPlacingStamp {
+                if let p = self.localMouse() {
+                    self.armView.ink.moveStamp(to: p)
+                }
+                return
+            }
             if let self = self, self.draggingToolbar {
                 self.toolbar.continueDrag(to: NSEvent.mouseLocation)
                 return
@@ -115,9 +143,19 @@ final class OverlayController {
             self?.wake()
         }
         inputTap.onMouseUp = { [weak self] in
+            if let self = self, self.ignoringPress {
+                self.ignoringPress = false
+                return
+            }
             if let self = self, self.draggingToolbar {
                 self.draggingToolbar = false
                 self.toolbar.endDrag()
+                return
+            }
+            if let self = self, self.armView.ink.isPlacingStamp {
+                self.armView.held = false
+                self.armView.ink.endStamp()
+                self.noteButtonEvent()
                 return
             }
             self?.release()

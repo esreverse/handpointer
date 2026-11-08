@@ -12,8 +12,9 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
     private let window: NSWindow
     private let host = NSView()
     private var glass: NSView?
-    /// Width of the Liquid Glass ring around the magnified view.
-    private static let ring: CGFloat = 10
+    /// Width of the Liquid Glass ring as a share of the loupe's diameter
+    /// (10 pt on the default 340 pt loupe), so it grows with the loupe.
+    private static let ringShare: CGFloat = 10 / 340
     private let layer = CALayer()
     private let content = CALayer()
 
@@ -152,7 +153,7 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
         // Fade the ring and shadow in with the zoom, so the loupe grows out of the screen.
         let progress = factor > 1 ? min(1, max(0, (zoom - 1) / (factor - 1))) : 1
 
-        let ring = glass == nil ? 0 : Magnifier.ring
+        let ring = glass == nil ? 0 : max(4, size * Magnifier.ringShare)
         window.setFrame(CGRect(x: mouse.x - size / 2, y: mouse.y - size / 2, width: size, height: size), display: false)
         if #available(macOS 26.0, *), let g = glass as? NSGlassEffectView {
             g.cornerRadius = size / 2
@@ -168,7 +169,7 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
         layer.shadowOpacity = glass == nil ? Float(0.35 * progress) : 0
         content.frame = layer.bounds
         content.cornerRadius = inner / 2
-        content.borderWidth = glass == nil ? 2 : 0
+        content.borderWidth = glass == nil ? max(2, size * 2 / 340) : 0
         content.borderColor = NSColor(white: 0, alpha: progress).cgColor
         content.contentsRect = CGRect(x: u, y: v, width: w, height: h)
         CATransaction.commit()

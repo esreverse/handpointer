@@ -42,6 +42,7 @@ make_bundle() {
     cp "$ROOT"/assets/hand_*.png "$app/Contents/Resources/"
     cp "$ROOT"/assets/sounds/tap_*.wav "$ROOT/assets/AppIcon.icns" "$ROOT/assets/Assets.car" "$app/Contents/Resources/"
     cp "$ROOT"/assets/menubar_*.png "$app/Contents/Resources/"
+    cp "$ROOT"/assets/fonts/*.ttf "$app/Contents/Resources/"
 
     local fw
     fw="$(find "${BUILD_DIR:-$ROOT/.build}/artifacts" -path "*macos-arm64_x86_64/Sparkle.framework" -maxdepth 6 | head -1)"

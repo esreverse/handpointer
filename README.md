@@ -27,6 +27,8 @@ Nothing underneath gets clicked, and one key puts your normal cursor back.
   and let lines fade on their own or keep them until you clear them.
 - **Rainbow ink:** Lines run through every colour as you draw, with adjustable speed. Each new line can
   start further around the colour wheel, or carry on exactly where the last one ended.
+- **Arrows:** Hold ⌃ while you draw and the line gets an arrowhead, shown live while you draw.
+- **Number stamps:** Hold ⌥ and click to place numbered circles, great for "which one do you like better?"
 - **Zoom loupe:** Hold ⇧ to magnify the screen around the pointer, with a Liquid Glass ring.
 - **37 pointers and your own:** Toy hands, a laser dot, a color pointer that shows your exact stroke, or a
   hand you make yourself from any image.
@@ -118,7 +120,9 @@ TinyPointer lives in the menu bar. Click its icon or press **⌃⇥** to turn th
 | Right-click the menu bar icon | Menu and Settings |
 | Click | Tap (nothing underneath gets clicked) |
 | Hold and drag | Draw on the screen |
-| Hold **⌃** | Click your Mac for real |
+| Hold **⌃** and drag | Draw a line with an arrowhead |
+| Hold **⌥** and click | Stamp numbered circles: 1, 2, 3 … |
+| Hold **⌘** | Click your Mac for real |
 | Hold **⇧** | Zoom loupe (turn it on in Settings first) |
 | **Q** | Clear the drawing |
 | **A** / **R** | Automatic colour / rainbow colour |
@@ -165,7 +169,7 @@ It isn't notarized by Apple yet. Open it once via **System Settings → Privacy 
 Accessibility isn't allowed. Check **Settings → General → Permissions** and open System Settings from there.
 
 **How do I click something for real while the pointer is on?**
-Hold **⌃** and click. You can change that key in **Settings → Shortcuts**.
+Hold **⌘** and click. You can change that key in **Settings → Shortcuts**.
 
 
 
@@ -192,7 +196,8 @@ Builds the DMG and the update feed for a release into `dist/release/`. The relea
 ## Credits
 
 TinyPointer is developed by [Eric Singhartinger](https://github.com/esreverse). It is based on
-[TinyHand](https://github.com/nilbuild/tinyhand) by Kamran Ahmed, used under the MIT License.
+[TinyHand](https://github.com/nilbuild/tinyhand) by Kamran Ahmed, used under the MIT License. Number stamps use
+[Playpen Sans](https://github.com/TypeTogether/Playpen-Sans) by TypeTogether, under the SIL Open Font License.
 
 
 

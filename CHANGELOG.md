@@ -5,6 +5,19 @@ so write it for people using the app.
 
 
 
+## 1.3.0
+
+- Arrows: Hold ⌃ while you draw and the line gets an open arrowhead pointing the way you drew, shown live
+- Number stamps: Hold ⌥ and click to place numbered circles 1, 2, 3 … in your ink colour; drag one to move it, click it to remove it
+- Smoothing: Lines are smoothed while you draw and still end right at the pointer, in four steps from off to medium; arrows always use the strongest
+- New hold keys: ⇧ zoom, ⌃ arrows, ⌥ number stamps, ⌘ click your Mac for real
+- Clicks and drags do nothing while you hold the zoom key
+- The zoom loupe goes from 200 to 800 pt, and its Liquid Glass ring grows with it
+- The skeleton hand no longer has a stray highlight
+- New defaults for a fresh install: 600 pt loupe at 4×, sound on, light smoothing
+
+
+
 ## 1.2.0
 
 - Color pointer: A dot in your stroke's size, colour and opacity instead of a hand, always last in the toolbar

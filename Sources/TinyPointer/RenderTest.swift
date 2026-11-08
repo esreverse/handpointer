@@ -35,7 +35,12 @@ enum RenderTest {
             let a0 = atan2(target.y - center.y, target.x - center.x)
             for k in 0...60 {
                 let a = a0 + CGFloat(k) / 60 * 2 * .pi
-                let p = CGPoint(x: center.x + 40 * cos(a), y: center.y + 32 * sin(a))
+                var p = CGPoint(x: center.x + 40 * cos(a), y: center.y + 32 * sin(a))
+                if ProcessInfo.processInfo.environment["TH_JITTER"] != nil {
+                    // Shaky hand, to see the smoothing.
+                    p.x += CGFloat.random(in: -4...4)
+                    p.y += CGFloat.random(in: -4...4)
+                }
                 if k == 0 {
                     view.ink.begin(at: p, width: view.inkWidth)
                 } else {
@@ -43,6 +48,12 @@ enum RenderTest {
                 }
             }
             view.ink.extend(to: target)
+            if ProcessInfo.processInfo.environment["TH_STAMPS"] != nil {
+                for k in 0..<4 {
+                    view.ink.beginStamp(at: CGPoint(x: target.x - 120 + CGFloat(k) * 52, y: target.y + 110))
+                    view.ink.endStamp()
+                }
+            }
             if resting {
                 view.ink.clear()
             }
