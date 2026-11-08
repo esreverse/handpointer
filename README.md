@@ -7,8 +7,6 @@
 
 <img src="./.github/banner-pointers.jpg" alt="TinyPointer: point, tap and draw on your Mac" />
 
-# [Download for macOS](https://github.com/esreverse/tinypointer/releases/latest/download/TinyPointer.dmg)
-
 
 
 # TinyPointer
@@ -16,6 +14,7 @@
 **A tiny hand on a stick for your Mac.** Turn it on, and your cursor becomes a hand that points, taps and
 draws on top of everything on screen. Made for demos, screen recordings, teaching and video calls.
 Nothing underneath gets clicked, and one key puts your normal cursor back.
+**[Download for macOS](https://github.com/esreverse/tinypointer/releases/latest/download/TinyPointer.dmg)**
 
 
 
