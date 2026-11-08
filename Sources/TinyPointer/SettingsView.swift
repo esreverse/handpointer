@@ -438,14 +438,14 @@ private struct GeneralPage: View {
                 }
             }
             Card(title: "Permissions") {
-                Row("Accessibility", detail: "Needed for the pointer: Clicks become taps and you can draw", allowed: AXIsProcessTrusted()) {
+                Row("Accessibility", detail: "Needed for the pointer: Clicks become taps and you can draw", allowed: Permissions.accessibility) {
                     PillButton(title: "Open Settings") {
                         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                             NSWorkspace.shared.open(url)
                         }
                     }
                 }
-                Row("Screen Recording", detail: "Needed for the zoom loupe", allowed: CGPreflightScreenCaptureAccess()) {
+                Row("Screen Recording", detail: "Needed for the zoom loupe", allowed: Permissions.screenRecording) {
                     PillButton(title: "Open Settings") {
                         CGRequestScreenCaptureAccess()
                         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
@@ -469,6 +469,14 @@ extension GeneralPage {
         f.timeStyle = .short
         return "Version \(version) – last checked \(f.string(from: date))"
     }
+}
+
+/// Permission state for the settings pages. TH_SCREENSHOT=1 shows both as allowed,
+/// for README screenshots rendered with --settings-test.
+private enum Permissions {
+    static var screenshot: Bool { ProcessInfo.processInfo.environment["TH_SCREENSHOT"] != nil }
+    static var accessibility: Bool { screenshot || AXIsProcessTrusted() }
+    static var screenRecording: Bool { screenshot || CGPreflightScreenCaptureAccess() }
 }
 
 private struct ShortcutsPage: View {
@@ -1205,7 +1213,7 @@ private struct ZoomPage: View {
 
     @ViewBuilder
     private var zoomSettings: some View {
-            if !CGPreflightScreenCaptureAccess() {
+            if !Permissions.screenRecording {
                 Card(title: "Permission") {
                     Row("Screen Recording", detail: "Needed so the loupe can show a magnified view of the screen") {
                         PillButton(title: "Open Settings") {

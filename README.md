@@ -1,17 +1,83 @@
-<img src="./.github/logo.png" width="80" />
+<img src="./.github/banner.jpg" alt="TinyPointer: point, tap and draw on your Mac" />
+
+<p align="center">
+  <a href="https://github.com/esreverse/tinypointer/releases/latest/download/TinyPointer.dmg"><img src="https://img.shields.io/badge/Download_for_macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" /></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/esreverse/tinypointer/releases/latest"><img src="https://img.shields.io/github/v/release/esreverse/tinypointer?display_name=tag&sort=semver" alt="Latest release" /></a>
+  <img src="https://img.shields.io/badge/macOS-13%2B-lightgrey" alt="macOS 13 or later" />
+  <img src="https://img.shields.io/badge/Apple_Silicon_%26_Intel-universal-lightgrey" alt="Apple Silicon and Intel" />
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" /></a>
+</p>
 
 # TinyPointer
 
-[![Latest release](https://img.shields.io/github/v/release/esreverse/tinypointer?display_name=tag&sort=semver)](https://github.com/esreverse/tinypointer/releases/latest)
-[![Platform: macOS](https://img.shields.io/badge/platform-macOS_13+-lightgrey)](https://github.com/esreverse/tinypointer/releases/latest)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+**A tiny hand on a stick for your Mac.** Turn it on, and your cursor becomes a hand that points, taps and
+draws on top of everything on screen – for demos, screen recordings, teaching and video calls.
+Nothing underneath gets clicked, and one key puts your normal cursor back.
 
-A tiny hand on a stick that points at things on your Mac screen, with rainbow ink, a tap circle and a zoom loupe.
 
-[![Download for macOS](https://img.shields.io/badge/Download_for_macOS-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/esreverse/tinypointer/releases/latest/download/TinyPointer.dmg)
 
-macOS 13 or later, Apple Silicon and Intel. Earlier versions and release notes are on the
-[Releases](https://github.com/esreverse/tinypointer/releases) page.
+## Features
+
+- **Point and tap** – Clicks become taps of the hand, with a sound and a circle where you tap, so people
+  watching see exactly what you mean.
+- **Draw anywhere** – Hold and drag to draw over any app. Pick a colour, the stroke size and the opacity,
+  and let lines fade on their own or keep them until you clear them.
+- **Rainbow ink** – Lines run through every colour as you draw, with adjustable speed. Each new line can
+  start further around the colour wheel, or carry on exactly where the last one ended.
+- **Zoom loupe** – Hold ⇧ to magnify the screen around the pointer, with a Liquid Glass ring.
+- **37 pointers and your own** – Toy hands, a laser dot, a color pointer that shows your exact stroke, or a
+  hand you make yourself from any image.
+- **A toolbar that stays out of the way** – Pointers, colours and sound in one bar. Drag it anywhere, hide
+  it with a key, and it disappears while you use your Mac for real.
+- **Shortcuts for everything** – Clear, switch colour or pointer, mute, show the toolbar. Single keys work
+  while the pointer is on and never get in the way of your other apps.
+- **Updates itself** – New versions install automatically; a manual check shows what is new.
+
+<p align="center">
+  <img src="./.github/screenshots/toolbar.png" alt="The TinyPointer toolbar with pointers, ink colours and sound" />
+</p>
+
+
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="./.github/screenshots/settings-drawing-dark.png" />
+        <img src="./.github/screenshots/settings-drawing-light.png" alt="Draw settings: pointer and stroke size, opacity, ink colour and rainbow" />
+      </picture>
+      <p align="center"><b>Draw</b> – size, opacity, colours, rainbow</p>
+    </td>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="./.github/screenshots/settings-shortcuts-dark.png" />
+        <img src="./.github/screenshots/settings-shortcuts-light.png" alt="Shortcut settings" />
+      </picture>
+      <p align="center"><b>Shortcuts</b> – every action on a key</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="./.github/screenshots/settings-zoom-dark.png" />
+        <img src="./.github/screenshots/settings-zoom-light.png" alt="Zoom settings: hold key, loupe size and zoom factor" />
+      </picture>
+      <p align="center"><b>Zoom</b> – loupe size, factor, animation</p>
+    </td>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="./.github/screenshots/settings-general-dark.png" />
+        <img src="./.github/screenshots/settings-general-light.png" alt="General settings: open at login and permissions" />
+      </picture>
+      <p align="center"><b>General</b> – startup, updates, permissions</p>
+    </td>
+  </tr>
+</table>
 
 
 
@@ -21,11 +87,10 @@ macOS 13 or later, Apple Silicon and Intel. Earlier versions and release notes a
 2. Open it and drag TinyPointer to **Applications**.
 3. Open TinyPointer. The first time, macOS says it can't check the developer, because the app is not
    notarized yet. Go to **System Settings → Privacy & Security** and click **Open Anyway**.
-4. Allow **Accessibility** when asked. TinyPointer needs it to turn your clicks into taps and to let you draw.
-5. For the zoom loupe, turn on Zoom in Settings and allow **Screen Recording**.
+4. Allow **Accessibility** when asked.
+5. Optional: for the zoom loupe, turn on Zoom in **Settings → Zoom** and allow **Screen Recording**.
 
-TinyPointer updates itself: new versions are checked and installed automatically. You can also check
-by hand in **Settings → General**.
+TinyPointer lives in the menu bar. Click its icon or press **⌃⇥** to turn the pointer on.
 
 
 
@@ -38,6 +103,7 @@ by hand in **Settings → General**.
 | Click | Tap (nothing underneath gets clicked) |
 | Hold and drag | Draw on the screen |
 | Hold **⌃** | Click your Mac for real |
+| Hold **⇧** | Zoom loupe (turn it on in Settings first) |
 | **Q** | Clear the drawing |
 | **A** / **R** | Automatic colour / rainbow colour |
 | **X** / **Y** | Next / previous pointer (hold to step through) |
@@ -47,7 +113,43 @@ by hand in **Settings → General**.
 | **Esc** or right-click | Clear everything and turn the pointer off |
 
 Single keys only work while the pointer is on. All shortcuts can be changed in **Settings → Shortcuts**.
-The zoom loupe is off at first; turn it on in **Settings → Zoom** and hold **⇧** to zoom.
+
+
+
+## Settings
+
+| Page | What you can change |
+|---|---|
+| **General** | Open at login, automatic updates, check for updates, permission status |
+| **Shortcuts** | Every shortcut, right-click to turn off, the key to click for real |
+| **Draw** | Pointer and stroke size, opacity, shadow, how long lines stay, ink colour, rainbow speed and shift, tap circle, toolbar |
+| **Zoom** | Hold key, loupe size, zoom factor, animation |
+| **Pointers** | Which pointers are in the toolbar and in what order, and your own hands |
+| **Sound** | Tap sound, play on tap only or on tap and draw |
+
+
+
+## Permissions And Privacy
+
+- **Accessibility** lets TinyPointer catch your clicks and turn them into taps and drawings. Without it,
+  the hand can't do anything.
+- **Screen Recording** is only needed for the zoom loupe. The picture stays on your Mac and is only used to
+  draw the loupe.
+- TinyPointer doesn't collect or send any data. The only connection it makes is the update check to this
+  repository's releases.
+
+
+
+## FAQ
+
+**macOS says TinyPointer can't be opened.**
+It isn't notarized by Apple yet. Open it once via **System Settings → Privacy & Security → Open Anyway**.
+
+**The hand doesn't react to clicks.**
+Accessibility isn't allowed. Check **Settings → General → Permissions** and open System Settings from there.
+
+**How do I click something for real while the pointer is on?**
+Hold **⌃** and click. You can change that key in **Settings → Shortcuts**.
 
 
 
@@ -59,14 +161,14 @@ For development only; to just use TinyPointer, download the DMG above.
 scripts/build-local.sh --install
 ```
 
-This compiles TinyPointer from the source code, signs it with a local certificate, replaces
-`/Applications/TinyPointer.app` and starts it.
+Compiles TinyPointer from source, signs it with a local certificate, replaces `/Applications/TinyPointer.app`
+and starts it.
 
 ```bash
 scripts/release.sh --skip-notarize
 ```
 
-This builds the DMG and the update feed for a release into `dist/release/`. The release notes come from
+Builds the DMG and the update feed for a release into `dist/release/`. The release notes come from
 [CHANGELOG.md](CHANGELOG.md).
 
 
