@@ -11,7 +11,8 @@ First release of TinyPointer, based on TinyHand 1.0.2 by Kamran Ahmed.
 
 - Rainbow ink: Lines run through every colour, with adjustable speed and a hue shift for each new line
 - Stroke size and line opacity can be set separately from the pointer size
-- Tap ripples: Rings grow and fade out where you tap
+- Tap circle: A circle grows and fades out where you tap
+- Tap sound plays on tap only, or on tap and draw
 - Zoom loupe: Hold a key to magnify the screen around the pointer
 - Ink colours sit right in the toolbar
 - The toolbar can be moved with the handle on its left; right-click the handle to put it back
