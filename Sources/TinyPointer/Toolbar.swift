@@ -179,7 +179,7 @@ final class Toolbar {
         permissionButton.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: nil)
         permissionButton.imagePosition = .imageLeading
         permissionButton.contentTintColor = .black
-        permissionButton.toolTip = "TinyPointer needs Accessibility permission to intercept clicks and draw"
+        permissionButton.toolTip = "Tiny Pointer needs Accessibility permission to intercept clicks and draw"
         permissionButton.heightAnchor.constraint(equalToConstant: 32).isActive = true
         permissionButton.target = self
         permissionButton.action = #selector(fixPermission)

@@ -1,6 +1,9 @@
 #!/bin/bash
 
 APP_NAME="TinyPointer"
+# The name people see (Finder, menus, update dialog, DMG). Files keep APP_NAME, so links
+# such as …/releases/latest/download/TinyPointer.dmg and existing installs keep working.
+DISPLAY_NAME="Tiny Pointer"
 BUNDLE_ID="com.esreverse.tinypointer"
 REPO="esreverse/tinypointer"
 FEED_URL="https://github.com/$REPO/releases/latest/download/appcast.xml"
@@ -40,9 +43,14 @@ make_bundle() {
     mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
     cp "$binary" "$app/Contents/MacOS/$APP_NAME"
     cp "$ROOT"/assets/hand_*.png "$app/Contents/Resources/"
-    cp "$ROOT"/assets/sounds/tap_*.wav "$ROOT/assets/AppIcon.icns" "$ROOT/assets/Assets.car" "$app/Contents/Resources/"
-    cp "$ROOT"/assets/menubar_*.png "$app/Contents/Resources/"
+    cp "$ROOT"/assets/sounds/tap_*.wav "$ROOT/assets/AppIcon.icns" "$app/Contents/Resources/"
+    cp "$ROOT"/assets/menubar_*.png "$ROOT/assets/settings_icon.png" "$app/Contents/Resources/"
     cp "$ROOT"/assets/fonts/*.ttf "$app/Contents/Resources/"
+    # The name people see. The Info.plist keeps APP_NAME, matching the file name, because
+    # macOS only shows a localized name when the file has not been renamed.
+    mkdir -p "$app/Contents/Resources/en.lproj"
+    printf '"CFBundleDisplayName" = "%s";\n"CFBundleName" = "%s";\n' "$DISPLAY_NAME" "$DISPLAY_NAME" \
+        > "$app/Contents/Resources/en.lproj/InfoPlist.strings"
 
     local fw
     fw="$(find "${BUILD_DIR:-$ROOT/.build}/artifacts" -path "*macos-arm64_x86_64/Sparkle.framework" -maxdepth 6 | head -1)"
@@ -58,13 +66,15 @@ make_bundle() {
     <string>$APP_NAME</string>
     <key>CFBundleDisplayName</key>
     <string>$APP_NAME</string>
+    <key>LSHasLocalizedDisplayName</key>
+    <true/>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
     <key>CFBundleIdentifier</key>
     <string>$BUNDLE_ID</string>
     <key>CFBundleExecutable</key>
     <string>$APP_NAME</string>
     <key>CFBundleIconFile</key>
-    <string>AppIcon</string>
-    <key>CFBundleIconName</key>
     <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>

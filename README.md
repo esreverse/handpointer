@@ -5,11 +5,11 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" /></a>
 </p>
 
-<img src="./.github/banner-mikado.jpg" alt="TinyPointer: point, tap and draw on your Mac" />
+<img src="./.github/banner-mikado.jpg" alt="Tiny Pointer: point, tap and draw on your Mac" />
 
 
 
-# TinyPointer
+# Tiny Pointer
 
 **A tiny hand on a stick for your Mac.** Turn it on, and your cursor becomes a hand that points, taps and
 draws on top of everything on screen. Made for demos, screen recordings, teaching and video calls.
@@ -30,7 +30,7 @@ Nothing underneath gets clicked, and one key puts your normal cursor back.
 - **Arrows:** Hold ⌃ while you draw and the line gets an arrowhead, shown live while you draw.
 - **Number stamps:** Hold ⌥ and click to place numbered circles, great for "which one do you like better?"
 - **Zoom loupe:** Hold ⇧ to magnify the screen around the pointer, with a Liquid Glass ring.
-- **37 pointers and your own:** Toy hands, a laser dot, a color pointer that shows your exact stroke, or a
+- **36 pointers and your own:** Toy hands, a laser dot, a color pointer that shows your exact stroke, or a
   hand you make yourself from any image.
 - **A toolbar that stays out of the way:** Pointers, colours and sound in one bar. Drag it anywhere, hide
   it with a key, and it disappears while you use your Mac for real.
@@ -39,7 +39,7 @@ Nothing underneath gets clicked, and one key puts your normal cursor back.
 - **Updates itself:** New versions install automatically; a manual check shows what is new.
 
 <p align="center">
-  <img src="./.github/screenshots/toolbar.png" alt="The TinyPointer toolbar with pointers, ink colours and sound" />
+  <img src="./.github/screenshots/toolbar.png" alt="The Tiny Pointer toolbar with pointers, ink colours and sound" />
 </p>
 
 
@@ -102,13 +102,13 @@ Nothing underneath gets clicked, and one key puts your normal cursor back.
 ## Install
 
 1. Download **TinyPointer.dmg** with the button above.
-2. Open it and drag TinyPointer to **Applications**.
-3. Open TinyPointer. The first time, macOS says it can't check the developer, because the app is not
+2. Open it and drag Tiny Pointer to **Applications**.
+3. Open Tiny Pointer. The first time, macOS says it can't check the developer, because the app is not
    notarized yet. Go to **System Settings → Privacy & Security** and click **Open Anyway**.
 4. Allow **Accessibility** when asked.
 5. Optional: for the zoom loupe, turn on Zoom in **Settings → Zoom** and allow **Screen Recording**.
 
-TinyPointer lives in the menu bar. Click its icon or press **⌃⇥** to turn the pointer on.
+Tiny Pointer lives in the menu bar. Click its icon or press **⌃⇥** to turn the pointer on.
 
 
 
@@ -152,18 +152,18 @@ Single keys only work while the pointer is on. All shortcuts can be changed in *
 
 ## Permissions And Privacy
 
-- **Accessibility** lets TinyPointer catch your clicks and turn them into taps and drawings. Without it,
+- **Accessibility** lets Tiny Pointer catch your clicks and turn them into taps and drawings. Without it,
   the hand can't do anything.
 - **Screen Recording** is only needed for the zoom loupe. The picture stays on your Mac and is only used to
   draw the loupe.
-- TinyPointer doesn't collect or send any data. The only connection it makes is the update check to this
+- Tiny Pointer doesn't collect or send any data. The only connection it makes is the update check to this
   repository's releases.
 
 
 
 ## FAQ
 
-**macOS says TinyPointer can't be opened.**
+**macOS says Tiny Pointer can't be opened.**
 It isn't notarized by Apple yet. Open it once via **System Settings → Privacy & Security → Open Anyway**.
 
 **The hand doesn't react to clicks.**
@@ -176,13 +176,13 @@ Hold **⌘** and click. You can change that key in **Settings → Shortcuts**.
 
 ## Build From Source
 
-For development only; to just use TinyPointer, download the DMG above.
+For development only; to just use Tiny Pointer, download the DMG above.
 
 ```bash
 scripts/build-local.sh --install
 ```
 
-Compiles TinyPointer from source, signs it with a local certificate, replaces `/Applications/TinyPointer.app`
+Compiles Tiny Pointer from source, signs it with a local certificate, replaces `/Applications/TinyPointer.app`
 and starts it.
 
 ```bash
@@ -196,7 +196,7 @@ Builds the DMG and the update feed for a release into `dist/release/`. The relea
 
 ## Credits
 
-TinyPointer is developed by [Eric Singhartinger](https://github.com/esreverse). It is based on
+Tiny Pointer is developed by [Eric Singhartinger](https://github.com/esreverse). It is based on
 [TinyHand](https://github.com/nilbuild/tinyhand) by Kamran Ahmed, used under the MIT License. Number stamps use
 [Playpen Sans](https://github.com/TypeTogether/Playpen-Sans) by TypeTogether, under the SIL Open Font License.
 

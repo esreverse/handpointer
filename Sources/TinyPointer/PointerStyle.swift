@@ -55,11 +55,10 @@ struct PointerStyle: Hashable {
         ("grass", "Grass", Ink.hex(0x3E9E2E)),
         ("cactus", "Cactus", Ink.hex(0x3E9E2E)),
         ("choco", "Chocolate", Ink.hex(0x9A5E2C)),
-        ("cloud", "Cloud", Ink.hex(0x2F86F0)),
         ("mech", "Mech", Ink.hex(0xF0561D)),
-        ("neon", "Neon", Ink.hex(0xE0309A)),
         ("leaf", "Leaf", Ink.hex(0x3E9E2E)),
         ("cookie", "Gingerbread", Ink.hex(0x9A5E2C)),
+        ("xmas", "Christmas tree", Ink.hex(0x104D1A)),
     ]
 
     static var builtInHands: [PointerStyle] {

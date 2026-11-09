@@ -9,39 +9,12 @@ from PIL import Image
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ICON_DIR = os.path.join(ROOT, "assets", "icon")
 ASSETS = os.path.join(ROOT, "assets")
-ICON_DOC = os.path.join(ASSETS, "AppIcon.icon")
-MIN_MACOS = "13.0"
+# The finished app icon: 1024 px, already rounded, with the standard margin around it.
+APP_ICON = os.path.join(ICON_DIR, "app-icon-1024.png")
 
 def svg_to_png(svg, size, out):
     subprocess.run(["rsvg-convert", "-w", str(size), "-h", str(size), "-a", "-o", out, svg], check=True)
     return Image.open(out).convert("RGBA")
-
-def developer_dir():
-    return subprocess.run(["xcode-select", "-p"], check=True, capture_output=True, text=True).stdout.strip()
-
-def compile_car(tmp):
-    out = os.path.join(tmp, "car")
-    os.makedirs(out)
-    subprocess.run([
-        "xcrun", "actool", ICON_DOC, "--compile", out,
-        "--output-partial-info-plist", os.path.join(out, "partial.plist"),
-        "--app-icon", "AppIcon", "--include-all-app-icons",
-        "--enable-on-demand-resources", "NO", "--development-region", "en",
-        "--target-device", "mac", "--platform", "macosx",
-        "--minimum-deployment-target", MIN_MACOS,
-    ], check=True, stdout=subprocess.DEVNULL)
-    shutil.copy(os.path.join(out, "Assets.car"), os.path.join(ASSETS, "Assets.car"))
-
-def app_icon(tmp):
-    ictool = os.path.join(developer_dir(), "..", "Applications", "Icon Composer.app", "Contents", "Executables", "ictool")
-    shape = os.path.join(tmp, "shape.png")
-    subprocess.run([
-        ictool, ICON_DOC, "--export-image", "--output-file", shape, "--platform", "macOS",
-        "--rendition", "Default", "--width", "824", "--height", "824", "--scale", "1",
-    ], check=True, stdout=subprocess.DEVNULL)
-    canvas = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
-    canvas.alpha_composite(Image.open(shape).convert("RGBA"), (100, 100))
-    return canvas
 
 def build_icns(icon, tmp):
     iconset = os.path.join(tmp, "AppIcon.iconset")
@@ -66,13 +39,11 @@ def menubar(tmp):
 def main():
     tmp = tempfile.mkdtemp()
     try:
-        compile_car(tmp)
-        icon = app_icon(tmp)
-        build_icns(icon, tmp)
+        build_icns(Image.open(APP_ICON).convert("RGBA"), tmp)
         menubar(tmp)
     finally:
         shutil.rmtree(tmp)
-    print("wrote assets/Assets.car, assets/AppIcon.icns, assets/menubar_*.png")
+    print("wrote assets/AppIcon.icns, assets/menubar_*.png")
 
 if __name__ == "__main__":
     main()

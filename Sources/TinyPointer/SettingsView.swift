@@ -141,7 +141,7 @@ final class SettingsModel: ObservableObject {
             draftError = problem.message
         } catch {
             draft = nil
-            draftError = "TinyPointer couldn't read that file."
+            draftError = "Tiny Pointer couldn't read that file."
         }
     }
 
@@ -168,7 +168,7 @@ final class SettingsModel: ObservableObject {
             handIdea = ""
             makingHand = false
         } catch {
-            draftError = "TinyPointer couldn't save that hand."
+            draftError = "Tiny Pointer couldn't save that hand."
         }
     }
 
@@ -350,10 +350,11 @@ struct SettingsView: View {
             }
             Spacer()
             HStack(spacing: 8) {
-                if let icon = NSImage(named: "AppIcon") ?? NSApp.applicationIconImage {
-                    Image(nsImage: icon).resizable().frame(width: 22, height: 22)
+                // The icon without the app icon's transparent margin, so it fills the small space.
+                if let icon = NSImage(named: "settings_icon") ?? NSApp.applicationIconImage {
+                    Image(nsImage: icon).resizable().frame(width: 20, height: 20)
                 }
-                Text("TinyPointer").font(.system(size: 12, weight: .semibold))
+                Text("Tiny Pointer").font(.system(size: 12, weight: .semibold))
                 Spacer()
             }
             .padding(.horizontal, 10)
@@ -425,7 +426,7 @@ private struct GeneralPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             Card(title: "Startup") {
-                Row("Open TinyPointer when you log in") {
+                Row("Open Tiny Pointer when you log in") {
                     Toggle("", isOn: model.binding({ Preferences.launchAtLogin }, { Preferences.launchAtLogin = $0 }))
                         .toggleStyle(.switch).labelsHidden().focusable(false)
                 }
@@ -1197,7 +1198,7 @@ private struct DrawingPage: View {
 
     private var toolbarCard: some View {
         Card(title: "Toolbar") {
-            Row("Show toolbar", detail: "The bar at the bottom of the screen while TinyPointer is on") {
+            Row("Show toolbar", detail: "The bar at the bottom of the screen while Tiny Pointer is on") {
                 Toggle("", isOn: model.binding({ Preferences.showToolbar }, { Preferences.showToolbar = $0 }))
                     .toggleStyle(.switch).labelsHidden().focusable(false)
             }
@@ -1435,7 +1436,7 @@ private struct AboutPage: View {
                     Image(nsImage: icon).resizable().frame(width: 72, height: 72)
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("TinyPointer").font(.system(size: 18, weight: .bold))
+                    Text("Tiny Pointer").font(.system(size: 18, weight: .bold))
                     Text("Version \(version)").font(.system(size: 12)).foregroundColor(.secondary)
                     Text("A tiny hand on a stick for your Mac. Free and open source").font(.system(size: 12)).foregroundColor(.secondary)
                 }
@@ -1744,7 +1745,7 @@ private struct MakeHandPage: View {
                     PlainField(placeholder: "My hand", text: Binding(get: { model.handName }, set: { model.handName = String($0.prefix(16)) }))
                         .frame(width: 220)
                 }
-                Text("It should show the back of the hand, like the ones in TinyPointer. If you see the palm, try another image")
+                Text("It should show the back of the hand, like the ones in Tiny Pointer. If you see the palm, try another image")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

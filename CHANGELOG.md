@@ -1,13 +1,24 @@
 # Changelog
 
-What changed in each version of TinyPointer. The section for a version is shown in the update dialog,
+What changed in each version of Tiny Pointer. The section for a version is shown in the update dialog,
 so write it for people using the app.
+
+
+
+## 1.4.0
+
+- Undo and redo: Press U to take back the last line or number stamp, I to bring it back; hold to keep going
+- Moving or removing a number stamp can be undone too
+- The green "Allowed" in General is easier to read in light mode
+- New installs start with the zoom loupe at 3×
+- New app icon, and the name is now written as two words: Tiny Pointer
+- New pointer: Christmas tree. The Cloud and Neon hands are gone
 
 
 
 ## 1.3.1
 
-- TinyPointer is now signed with a Developer ID and notarized by Apple, so it opens without the security warning
+- Tiny Pointer is now signed with a Developer ID and notarized by Apple, so it opens without the security warning
 - After this update, allow Accessibility once more in System Settings, because the app's signature changed
 
 
@@ -43,7 +54,7 @@ so write it for people using the app.
 
 ## 1.1.0
 
-First release of TinyPointer, based on TinyHand 1.0.2 by Kamran Ahmed.
+First release of Tiny Pointer, based on TinyHand 1.0.2 by Kamran Ahmed.
 
 - Rainbow ink: Lines run through every colour, with adjustable speed and a hue shift for each new line
 - Stroke size and line opacity can be set separately from the pointer size

@@ -58,7 +58,7 @@ STAGE="$(mktemp -d)"
 cp -R "$APP" "$STAGE/"
 if command -v create-dmg >/dev/null; then
 create-dmg \
-    --volname "$APP_NAME" \
+    --volname "$DISPLAY_NAME" \
     --volicon "assets/AppIcon.icns" \
     --window-pos 200 120 \
     --window-size 560 360 \
@@ -70,7 +70,7 @@ create-dmg \
     "$DMG" "$STAGE" >/dev/null
 else
     ln -s /Applications "$STAGE/Applications"
-    hdiutil create -volname "$APP_NAME" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
+    hdiutil create -volname "$DISPLAY_NAME" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
 fi
 rm -rf "$STAGE"
 codesign --force --timestamp --sign "$IDENTITY" "$DMG"
@@ -95,7 +95,7 @@ fi
 if [[ -z "${RELEASE_NOTES:-}" && -f CHANGELOG.md ]]; then
     RELEASE_NOTES="$(awk -v v="## $VERSION" '$0 == v {on = 1; next} on && /^## / {exit} on' CHANGELOG.md)"
 fi
-NOTES_HTML="$(printf '%s\n' "${RELEASE_NOTES:-TinyPointer $VERSION}" \
+NOTES_HTML="$(printf '%s\n' "${RELEASE_NOTES:-$DISPLAY_NAME $VERSION}" \
     | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' \
     | awk 'BEGIN {list = 0}
            /^- / {if (!list) {print "<ul>"; list = 1} sub(/^- /, ""); print "<li>" $0 "</li>"; next}
@@ -106,9 +106,9 @@ cat > "$OUT/appcast.xml" <<XML
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
-    <title>$APP_NAME</title>
+    <title>$DISPLAY_NAME</title>
     <item>
-      <title>$APP_NAME $VERSION</title>
+      <title>$DISPLAY_NAME $VERSION</title>
       <pubDate>$(LC_ALL=C date -u "+%a, %d %b %Y %H:%M:%S +0000")</pubDate>
       <sparkle:version>$BUILD_NUMBER</sparkle:version>
       <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
