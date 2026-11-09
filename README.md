@@ -5,7 +5,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" /></a>
 </p>
 
-<img src="./.github/banner-mikado.jpg" alt="Tiny Pointer: point, tap and draw on your Mac" />
+<img src="./.github/banner.png" alt="Tiny Pointer: for when you need a hand to point things out on your screen" />
 
 
 
