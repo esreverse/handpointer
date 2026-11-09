@@ -1527,6 +1527,13 @@ private struct Separated: _VariadicView_MultiViewRoot {
     }
 }
 
+/// The system green is hard to read on the light background, so light mode uses a deeper one.
+private let allowedGreen = Color(nsColor: NSColor(name: nil) { appearance in
+    appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        ? .systemGreen
+        : NSColor(srgbRed: 0.10, green: 0.53, blue: 0.20, alpha: 1)
+})
+
 private struct Row<Trailing: View>: View {
     let title: String
     let detail: String?
@@ -1544,8 +1551,9 @@ private struct Row<Trailing: View>: View {
     private func statusText(_ allowed: Bool) -> Text {
         let mark = Text(Image(systemName: allowed ? "checkmark" : "xmark")).font(.system(size: 8, weight: .heavy)).baselineOffset(1)
         return (mark + Text(allowed ? " Allowed" : " Not yet allowed"))
-            .foregroundColor(allowed ? .green : .red)
+            .foregroundColor(allowed ? allowedGreen : .red)
     }
+
 
     var body: some View {
         HStack(spacing: 12) {

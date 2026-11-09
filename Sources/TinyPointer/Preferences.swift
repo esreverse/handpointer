@@ -411,7 +411,7 @@ enum Preferences {
     static let zoomFactorRange = 1.5...6.0
 
     static var zoomFactor: Double {
-        get { min(6, max(1.5, defaults.object(forKey: "zoomFactor") as? Double ?? 4)) }
+        get { min(6, max(1.5, defaults.object(forKey: "zoomFactor") as? Double ?? 3)) }
         set { set(min(6, max(1.5, newValue)), "zoomFactor") }
     }
 

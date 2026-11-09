@@ -3,20 +3,18 @@ set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 cd "$ROOT"
 
-# Signs with a Developer ID certificate when one is in the keychain, otherwise with the
-# local self-signed identity. Only Developer ID builds can be notarized.
-if [[ -z "${CODESIGN_IDENTITY:-}" ]]; then
-    if security find-identity -v -p codesigning | grep -q "Developer ID Application"; then
-        CODESIGN_IDENTITY="Developer ID Application"
-    else
-        CODESIGN_IDENTITY="TinyHand Local Signing"
-    fi
+# Releases are always signed with a Developer ID and notarized, so they open without a
+# security warning. --skip-notarize is for trying the build only, never for publishing.
+CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Developer ID Application}"
+if [[ "$CODESIGN_IDENTITY" != Developer\ ID* ]] \
+        || ! security find-identity -v -p codesigning | grep -q "$CODESIGN_IDENTITY"; then
+    echo "error: no valid \"$CODESIGN_IDENTITY\" identity in the keychain; releases need a Developer ID." >&2
+    exit 1
 fi
 IDENTITY="$CODESIGN_IDENTITY"
 PROFILE="${NOTARY_PROFILE:-notarytool-profile}"
 SKIP_NOTARIZE=false
 [[ "${1:-}" == "--skip-notarize" ]] && SKIP_NOTARIZE=true
-[[ "$IDENTITY" != Developer\ ID* ]] && SKIP_NOTARIZE=true
 
 OUT="dist/release"
 APP="$OUT/$APP_NAME.app"

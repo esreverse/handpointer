@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build TinyPointer for use on this Mac only, without a Developer ID certificate.
+# Build TinyPointer for use on this Mac only (not notarized; see release.sh for that).
 #
 #   scripts/build-local.sh            build into ~/Library/Caches/tinypointer-build/dist
 #   scripts/build-local.sh --install  also replace /Applications/TinyPointer.app and start it
@@ -8,11 +8,10 @@
 #   break SwiftPM's build database.
 # - Without full Xcode, the newest Command Line Tools SDK may lack the SwiftUI macro
 #   plugin; the script then falls back to the newest macOS 26 SDK. Override with SDKROOT.
-# - Signs with the keychain identity "TinyHand Local Signing" (override with
-#   LOCAL_SIGN_IDENTITY) so the Accessibility permission survives rebuilds.
-#   Falls back to an ad hoc signature, which needs the permission again after each build.
-# - No hardened runtime. Updates come through Sparkle from the GitHub releases.
-# - macOS asks for Accessibility again after each new build.
+# - Signs with the keychain's Developer ID Application identity, like the releases, so the
+#   Accessibility permission survives rebuilds and switching to a release. Without one, it
+#   uses "TinyHand Local Signing", then an ad hoc signature, which needs the permission
+#   again after each build. Override with LOCAL_SIGN_IDENTITY (the full identity name).
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 cd "$ROOT"
@@ -29,7 +28,8 @@ mkdir -p "$BUILD_DIR/dist"
 # A timestamp build number keeps a local build newer than the last release, so Sparkle
 # does not replace it with that release.
 make_bundle "$BUILD_DIR/release/$APP_NAME" "$APP" "$(date +%Y%m%d%H%M)"
-IDENTITY="${LOCAL_SIGN_IDENTITY:-TinyHand Local Signing}"
+DEVELOPER_ID="$(security find-identity -v -p codesigning | sed -n 's/.*"\(Developer ID Application:[^"]*\)".*/\1/p' | head -1)"
+IDENTITY="${LOCAL_SIGN_IDENTITY:-${DEVELOPER_ID:-TinyHand Local Signing}}"
 if security find-identity -p codesigning | grep -q "\"$IDENTITY\""; then
     sign_app "$APP" "$IDENTITY"
 else
