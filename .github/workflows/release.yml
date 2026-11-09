@@ -1,8 +1,8 @@
 name: Release
 
+# Manual only: releases are built locally with scripts/release.sh. Running this needs the
+# signing secrets (APPLE_CERTIFICATE, APPLE_ID, …) set in the repository first.
 on:
-  push:
-    tags: ['v*']
   workflow_dispatch:
 
 concurrency:
