@@ -27,6 +27,12 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     var applySoundShortcut: ((Shortcut) -> Bool)? {
         didSet { model.applySoundShortcut = applySoundShortcut }
     }
+    var applyUndoShortcut: ((Shortcut) -> Bool)? {
+        didSet { model.applyUndoShortcut = applyUndoShortcut }
+    }
+    var applyRedoShortcut: ((Shortcut) -> Bool)? {
+        didSet { model.applyRedoShortcut = applyRedoShortcut }
+    }
     var updater: Updater? {
         didSet { model.updater = updater }
     }

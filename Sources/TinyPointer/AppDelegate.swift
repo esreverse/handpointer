@@ -111,6 +111,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settings.applySoundShortcut = { [weak self] s in
             self?.apply(s, to: .sound) ?? false
         }
+        settings.applyUndoShortcut = { [weak self] s in
+            self?.apply(s, to: .undo) ?? false
+        }
+        settings.applyRedoShortcut = { [weak self] s in
+            self?.apply(s, to: .redo) ?? false
+        }
         settings.updater = Updater.isAvailable ? updater : nil
         settings.onRecording = { [weak self] recording in
             if recording {
@@ -163,7 +169,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private enum ShortcutAction: CaseIterable {
-        case toggle, clear, toolbar, rainbowInk, matchInk, nextPointer, previousPointer, sound, settings
+        case toggle, clear, undo, redo, toolbar, rainbowInk, matchInk, nextPointer, previousPointer, sound, settings
 
         /// Only grabbed while the pointer is on: ⌘, opens Settings then, as in any app,
         /// without taking ⌘, away from other apps the rest of the time.
@@ -174,6 +180,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 switch self {
                 case .toggle: return Preferences.toggleShortcut
                 case .clear: return Preferences.clearShortcut
+                case .undo: return Preferences.undoShortcut
+                case .redo: return Preferences.redoShortcut
                 case .toolbar: return Preferences.toolbarShortcut
                 case .rainbowInk: return Preferences.rainbowInkShortcut
                 case .matchInk: return Preferences.matchInkShortcut
@@ -187,6 +195,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 switch self {
                 case .toggle: Preferences.toggleShortcut = newValue
                 case .clear: Preferences.clearShortcut = newValue
+                case .undo: Preferences.undoShortcut = newValue
+                case .redo: Preferences.redoShortcut = newValue
                 case .toolbar: Preferences.toolbarShortcut = newValue
                 case .rainbowInk: Preferences.rainbowInkShortcut = newValue
                 case .matchInk: Preferences.matchInkShortcut = newValue
@@ -214,8 +224,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private var repeatTimer: Timer?
 
-    /// Holding the next/previous pointer key repeats it, like a held key in a text field.
-    private func startRepeat(_ action: ShortcutAction) {
+    /// Holding the next/previous pointer or undo/redo key repeats it, like a held key in a text field.
+    private func startRepeat(_ action: ShortcutAction, _ step: @escaping () -> Void) {
         repeatTimer?.invalidate()
         let code = CGKeyCode(action.shortcut.keyCode)
         let start = Date()
@@ -225,7 +235,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 return
             }
             if Date().timeIntervalSince(start) >= 0.4 {
-                self?.overlay.cyclePointer(by: action == .nextPointer ? 1 : -1)
+                step()
             }
         }
     }
@@ -234,15 +244,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         switch action {
         case .toggle: overlay.toggle()
         case .clear: overlay.clearInk()
+        case .undo:
+            overlay.undoInk()
+            startRepeat(action) { [weak self] in self?.overlay.undoInk() }
+        case .redo:
+            overlay.redoInk()
+            startRepeat(action) { [weak self] in self?.overlay.redoInk() }
         case .toolbar: overlay.toggleToolbar()
         case .rainbowInk: Preferences.inkChoice = .rainbow
         case .matchInk: Preferences.inkChoice = .match
         case .nextPointer:
             overlay.cyclePointer(by: 1)
-            startRepeat(action)
+            startRepeat(action) { [weak self] in self?.overlay.cyclePointer(by: 1) }
         case .previousPointer:
             overlay.cyclePointer(by: -1)
-            startRepeat(action)
+            startRepeat(action) { [weak self] in self?.overlay.cyclePointer(by: -1) }
         case .sound: overlay.soundOn.toggle()
         case .settings: openSettings()
         }

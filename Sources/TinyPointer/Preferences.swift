@@ -78,6 +78,8 @@ struct Shortcut: Equatable {
     static let nextPointerDefault = Shortcut.letter("X", fallback: kVK_ANSI_X)
     static let previousPointerDefault = Shortcut.letter("Y", fallback: kVK_ANSI_Y)
     static let soundDefault = Shortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: 0, display: "M")
+    static let undoDefault = Shortcut.letter("U", fallback: kVK_ANSI_U)
+    static let redoDefault = Shortcut.letter("I", fallback: kVK_ANSI_I)
 }
 
 enum InteractKey: String, CaseIterable {
@@ -243,6 +245,16 @@ enum Preferences {
     static var soundShortcut: Shortcut {
         get { loadShortcut("shortcut.sound") ?? .soundDefault }
         set { saveShortcut(newValue, "shortcut.sound") }
+    }
+
+    static var undoShortcut: Shortcut {
+        get { loadShortcut("shortcut.undo") ?? .undoDefault }
+        set { saveShortcut(newValue, "shortcut.undo") }
+    }
+
+    static var redoShortcut: Shortcut {
+        get { loadShortcut("shortcut.redo") ?? .redoDefault }
+        set { saveShortcut(newValue, "shortcut.redo") }
     }
 
     static let pointerSizeRange: ClosedRange<CGFloat> = 0.08...0.20
@@ -500,7 +512,7 @@ enum Preferences {
     static func resetAll() {
         for key in ["shortcut.toggle", "shortcut.clear", "shortcut.toolbar",
                     "shortcut.nextPointer", "shortcut.previousPointer", "shortcut.sound",
-                    "shortcut.rainbowInk", "shortcut.matchInk", "pointerSize", "showShadow", "fadeSeconds",
+                    "shortcut.rainbowInk", "shortcut.matchInk", "shortcut.undo", "shortcut.redo", "pointerSize", "showShadow", "fadeSeconds",
                     "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "pinnedStyles", "pointerStyle",
                     "inkChoice", "showInkButton", "tapSound", "showToolbar", "inkOpacity", "rainbowStep", "rainbowSpeed", "strokeSize",
                     "toolbarX", "toolbarY", "tapRipples", "soundOnDraw", "strokeSmoothing", "zoomKey", "lastZoomKey", "arrowKey", "stampKey", "loupeSize", "rightClickExits", "zoomFactor", "zoomAnimated"] {

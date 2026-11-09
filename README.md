@@ -34,7 +34,7 @@ Nothing underneath gets clicked, and one key puts your normal cursor back.
   hand you make yourself from any image.
 - **A toolbar that stays out of the way:** Pointers, colours and sound in one bar. Drag it anywhere, hide
   it with a key, and it disappears while you use your Mac for real.
-- **Shortcuts for everything:** Clear, switch colour or pointer, mute, show the toolbar. Single keys work
+- **Shortcuts for everything:** Clear, undo and redo, switch colour or pointer, mute, show the toolbar. Single keys work
   while the pointer is on and never get in the way of your other apps.
 - **Updates itself:** New versions install automatically; a manual check shows what is new.
 
@@ -125,6 +125,7 @@ TinyPointer lives in the menu bar. Click its icon or press **⌃⇥** to turn th
 | Hold **⌘** | Click your Mac for real |
 | Hold **⇧** | Zoom loupe (turn it on in Settings first) |
 | **Q** | Clear the drawing |
+| **U** / **I** | Undo / redo the last line or stamp (hold to keep going) |
 | **A** / **R** | Automatic colour / rainbow colour |
 | **X** / **Y** | Next / previous pointer (hold to step through) |
 | **H** | Show or hide the toolbar |

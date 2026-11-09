@@ -57,6 +57,8 @@ final class SettingsModel: ObservableObject {
     var applyNextPointerShortcut: ((Shortcut) -> Bool)?
     var applyPreviousPointerShortcut: ((Shortcut) -> Bool)?
     var applySoundShortcut: ((Shortcut) -> Bool)?
+    var applyUndoShortcut: ((Shortcut) -> Bool)?
+    var applyRedoShortcut: ((Shortcut) -> Bool)?
     var updater: Updater?
     var onRecording: ((Bool) -> Void)?
     @Published var shortcutError: String?
@@ -265,6 +267,8 @@ final class SettingsModel: ObservableObject {
         _ = applyNextPointerShortcut?(.nextPointerDefault)
         _ = applyPreviousPointerShortcut?(.previousPointerDefault)
         _ = applySoundShortcut?(.soundDefault)
+        _ = applyUndoShortcut?(.undoDefault)
+        _ = applyRedoShortcut?(.redoDefault)
         shortcutError = nil
         pinMessage = nil
         revision += 1
@@ -499,6 +503,12 @@ private struct ShortcutsPage: View {
             Card(title: "Draw") {
                 Row("Clear drawing", detail: "A single key works too, while the pointer is on") {
                     ShortcutField(shortcut: Preferences.clearShortcut, model: model, allowsBareKey: true) { model.applyClearShortcut?($0) ?? false }
+                }
+                Row("Undo", detail: "Takes back the last line or stamp; hold to keep going") {
+                    ShortcutField(shortcut: Preferences.undoShortcut, model: model, allowsBareKey: true) { model.applyUndoShortcut?($0) ?? false }
+                }
+                Row("Redo", detail: "Brings back what you took back") {
+                    ShortcutField(shortcut: Preferences.redoShortcut, model: model, allowsBareKey: true) { model.applyRedoShortcut?($0) ?? false }
                 }
                 Row("Stamp numbers", detail: "Hold and click to place 1, 2, 3 … Drag one to move it, click it to remove it") {
                     Picker("", selection: model.binding({ Preferences.stampKey }, { Preferences.stampKey = $0 })) {

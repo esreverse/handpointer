@@ -337,6 +337,14 @@ final class OverlayController {
         armView.ink.clear()
     }
 
+    func undoInk() {
+        armView.ink.undo()
+    }
+
+    func redoInk() {
+        armView.ink.redo()
+    }
+
     private func drag() {
         guard let start = downPoint, let p = localMouse() else {
             return

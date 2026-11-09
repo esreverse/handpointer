@@ -351,10 +351,105 @@ final class Ink {
         piece = nil
         points = []
         freeze(s)
+        record(.add(s, number: nil))
         if keep {
             return
         }
         fade(s, after: fadeDelay, over: fadeDuration)
+    }
+
+    // MARK: Undo and redo
+
+    /// One change to the drawing that can be taken back.
+    private enum Step {
+        /// A line, or a new stamp with its number.
+        case add(CALayer, number: Int?)
+        /// A stamp removed with a click.
+        case remove(CALayer, number: Int)
+        case move(CALayer, from: CGPoint, to: CGPoint)
+    }
+
+    private var undoSteps: [Step] = []
+    private var redoSteps: [Step] = []
+    private static let maxSteps = 200
+
+    private func record(_ step: Step) {
+        undoSteps.append(step)
+        if undoSteps.count > Ink.maxSteps {
+            undoSteps.removeFirst()
+        }
+        redoSteps = []
+    }
+
+    /// Takes back the last line or stamp change. Lines that have already faded are skipped.
+    func undo() {
+        guard stroke == nil, placing == nil else {
+            return
+        }
+        while let step = undoSteps.popLast() {
+            if apply(step, forward: false) {
+                redoSteps.append(step)
+                return
+            }
+        }
+    }
+
+    /// Brings back what `undo` took back.
+    func redo() {
+        guard stroke == nil, placing == nil else {
+            return
+        }
+        while let step = redoSteps.popLast() {
+            if apply(step, forward: true) {
+                undoSteps.append(step)
+                return
+            }
+        }
+    }
+
+    /// Does (`forward`) or takes back a step. False when it no longer applies, because the
+    /// line or stamp has faded away in the meantime.
+    private func apply(_ step: Step, forward: Bool) -> Bool {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        switch step {
+        case let .add(l, number):
+            return forward ? show(l, number: number) : hide(l)
+        case let .remove(l, number):
+            return forward ? hide(l) : show(l, number: number)
+        case let .move(l, from, to):
+            guard l.superlayer != nil else {
+                return false
+            }
+            l.position = forward ? to : from
+            return true
+        }
+    }
+
+    private func hide(_ l: CALayer) -> Bool {
+        guard l.superlayer != nil else {
+            return false
+        }
+        l.removeFromSuperlayer()
+        stampList.removeAll { $0.layer === l }
+        return true
+    }
+
+    private func show(_ l: CALayer, number: Int?) -> Bool {
+        guard l.superlayer == nil else {
+            return false
+        }
+        layer.addSublayer(l)
+        if let number = number {
+            stampList.append((l, number))
+        }
+        // Back on screen: with fading lines, it fades again from now on.
+        l.removeAnimation(forKey: "fade")
+        if !keep {
+            fade(l, after: fadeDelay, over: fadeDuration)
+        }
+        return true
     }
 
     /// Number stamps on screen, with their numbers.
@@ -364,6 +459,7 @@ final class Ink {
     private var placingStart = CGPoint.zero
     private var placingMoved = false
     private var grabOffset = CGPoint.zero
+    private var grabbedFrom = CGPoint.zero
 
     /// Mouse down with the stamp key: grab the stamp under the pointer, or put down a new one.
     func pressStamp(at point: CGPoint) {
@@ -376,6 +472,7 @@ final class Ink {
         }) {
             placing = hit.layer
             placingExisting = true
+            grabbedFrom = hit.layer.position
             grabOffset = CGPoint(x: hit.layer.position.x - point.x, y: hit.layer.position.y - point.y)
             return
         }
@@ -482,14 +579,19 @@ final class Ink {
         if placingExisting {
             // A plain click on a stamp removes it; dragging it just moved it.
             if !placingMoved {
+                let number = stampList.first { $0.layer === group }?.number ?? 0
                 group.removeFromSuperlayer()
                 stampList.removeAll { $0.layer === group }
+                record(.remove(group, number: number))
+            } else {
+                record(.move(group, from: grabbedFrom, to: group.position))
             }
             placingExisting = false
             return
         }
         group.rasterizationScale = scale
         group.shouldRasterize = true
+        record(.add(group, number: stampList.first { $0.layer === group }?.number))
         if !keep {
             fade(group, after: fadeDelay, over: fadeDuration)
         }
@@ -500,6 +602,8 @@ final class Ink {
     func clear() {
         placing = nil
         stampList = []
+        undoSteps = []
+        redoSteps = []
         rainbowLines = 0
         lastRainbowHue = 0
         stroke = nil
@@ -538,9 +642,15 @@ final class Ink {
         anim.timingFunction = CAMediaTimingFunction(name: .easeIn)
         anim.fillMode = .forwards
         anim.isRemovedOnCompletion = false
+        // A line brought back with redo fades again; only its latest fade may remove it.
+        let token = UUID()
+        s.setValue(token, forKey: "fadeToken")
         s.add(anim, forKey: "fade")
         DispatchQueue.main.asyncAfter(deadline: .now() + delay + duration) { [weak s] in
-            s?.removeFromSuperlayer()
+            guard let s = s, s.value(forKey: "fadeToken") as? UUID == token else {
+                return
+            }
+            s.removeFromSuperlayer()
         }
     }
 
