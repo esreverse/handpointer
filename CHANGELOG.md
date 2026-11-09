@@ -5,6 +5,13 @@ so write it for people using the app.
 
 
 
+## 1.3.1
+
+- TinyPointer is now signed with a Developer ID and notarized by Apple, so it opens without the security warning
+- After this update, allow Accessibility once more in System Settings, because the app's signature changed
+
+
+
 ## 1.3.0
 
 - Arrows: Hold ⌃ while you draw and the line gets an open arrowhead pointing the way you drew, shown live
