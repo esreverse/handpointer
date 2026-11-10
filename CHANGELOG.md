@@ -5,6 +5,13 @@ so write it for people using the app.
 
 
 
+## 1.5.0
+
+- Tiny Pointer is now called Hand Pointer
+- Hand Pointer is a new app on your Mac: allow Accessibility once more in System Settings, and turn on Open at login again if you use it
+
+
+
 ## 1.4.0
 
 - Undo and redo: Press U to take back the last line or number stamp, I to bring it back; hold to keep going
