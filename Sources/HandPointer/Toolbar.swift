@@ -179,7 +179,7 @@ final class Toolbar {
         permissionButton.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: nil)
         permissionButton.imagePosition = .imageLeading
         permissionButton.contentTintColor = .black
-        permissionButton.toolTip = "Tiny Pointer needs Accessibility permission to intercept clicks and draw"
+        permissionButton.toolTip = "Hand Pointer needs Accessibility permission to intercept clicks and draw"
         permissionButton.heightAnchor.constraint(equalToConstant: 32).isActive = true
         permissionButton.target = self
         permissionButton.action = #selector(fixPermission)
@@ -451,7 +451,7 @@ final class Toolbar {
     private weak var placedScreen: NSScreen?
     private weak var handleView: NSView?
 
-    // Own tooltips: the native ones never show while TinyPointer runs in the background
+    // Own tooltips: the native ones never show while HandPointer runs in the background
     // with the cursor hidden, so the overlay tells the toolbar where the mouse is.
     private var tips: [NSView: String] = [:]
     private var tipPanel: Panel?

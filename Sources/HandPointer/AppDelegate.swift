@@ -81,7 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit Tiny Pointer", action: #selector(quit), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Quit Hand Pointer", action: #selector(quit), keyEquivalent: "q"))
         menu.items.forEach { $0.target = self }
         menu.delegate = self
     }
@@ -345,13 +345,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let on = overlay.isActive
         let image = Bundle.main.image(forResource: on ? "menubar_on" : "menubar_off")
             ?? NSImage(systemSymbolName: on ? "hand.point.up.left.fill" : "hand.point.up.left",
-                       accessibilityDescription: "Tiny Pointer")
+                       accessibilityDescription: "Hand Pointer")
         image?.size = NSSize(width: 18, height: 18)
         image?.isTemplate = true
         statusItem.button?.image = image
         statusItem.button?.toolTip = overlay.isActive
-            ? "Tiny Pointer is on — click to turn off, right-click for the menu"
-            : "Tiny Pointer — click to turn on, right-click for the menu"
+            ? "Hand Pointer is on — click to turn off, right-click for the menu"
+            : "Hand Pointer — click to turn on, right-click for the menu"
     }
 
     private func editingMenu() -> NSMenu {
@@ -359,7 +359,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        appMenu.addItem(withTitle: "Quit Tiny Pointer", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: "Quit Hand Pointer", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
         main.addItem(appItem)
         let editItem = NSMenuItem()

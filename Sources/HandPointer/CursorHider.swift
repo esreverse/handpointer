@@ -88,7 +88,7 @@ enum DockArea {
     private static var frame: CGRect = .null
     private static var lastRead = Date.distantPast
     private static var reading = false
-    private static let queue = DispatchQueue(label: "TinyPointer.dock-area", qos: .utility)
+    private static let queue = DispatchQueue(label: "HandPointer.dock-area", qos: .utility)
 
     static func contains(_ cgPoint: CGPoint) -> Bool {
         let (known, refresh) = lock.withLock { () -> (CGRect, Bool) in

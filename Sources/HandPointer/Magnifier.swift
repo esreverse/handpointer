@@ -4,7 +4,7 @@ import ScreenCaptureKit
 
 /// A round loupe that follows the pointer and shows the screen magnified while the zoom key is held.
 ///
-/// The screen is captured with ScreenCaptureKit (needs Screen Recording permission). TinyPointer's own
+/// The screen is captured with ScreenCaptureKit (needs Screen Recording permission). HandPointer's own
 /// windows are left out of the capture, so the hand, the ink and the toolbar never show up inside it.
 /// Capture starts when the key is first held and stops a few seconds after the loupe has closed.
 final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
@@ -23,7 +23,7 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
     private var streamDisplay: CGDirectDisplayID?
     private var hasFrame = false
     private var askedPermission = false
-    private let queue = DispatchQueue(label: "tinypointer.magnifier")
+    private let queue = DispatchQueue(label: "handpointer.magnifier")
 
     private var zoom: CGFloat = 1
     private var target: CGFloat = 1

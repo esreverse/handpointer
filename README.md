@@ -1,21 +1,21 @@
 <p>
-  <a href="https://github.com/esreverse/tinypointer/releases/latest"><img src="https://img.shields.io/github/v/release/esreverse/tinypointer?display_name=tag&sort=semver" alt="Latest release" /></a>
+  <a href="https://github.com/esreverse/handpointer/releases/latest"><img src="https://img.shields.io/github/v/release/esreverse/handpointer?display_name=tag&sort=semver" alt="Latest release" /></a>
   <img src="https://img.shields.io/badge/macOS-13%2B-lightgrey" alt="macOS 13 or later" />
   <img src="https://img.shields.io/badge/Apple_Silicon_%26_Intel-universal-lightgrey" alt="Apple Silicon and Intel" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" /></a>
 </p>
 
-<img src="./.github/banner.png" alt="Tiny Pointer: for when you need a hand to point things out on your screen" />
+<img src="./.github/banner.png" alt="Hand Pointer: for when you need a hand to point things out on your screen" />
 
 
 
-# Tiny Pointer
+# Hand Pointer
 
 **A tiny hand on a stick for your Mac.** Turn it on, and your cursor becomes a hand that points, taps and
 draws on top of everything on screen. Made for demos, screen recordings, teaching and video calls.
 Nothing underneath gets clicked, and one key puts your normal cursor back.
 
-**[Download for macOS](https://github.com/esreverse/tinypointer/releases/latest/download/TinyPointer.dmg)**
+**[Download for macOS](https://github.com/esreverse/handpointer/releases/latest/download/HandPointer.dmg)**
 
 
 
@@ -39,7 +39,7 @@ Nothing underneath gets clicked, and one key puts your normal cursor back.
 - **Updates itself:** New versions install automatically; a manual check shows what is new.
 
 <p align="center">
-  <img src="./.github/screenshots/toolbar.png" alt="The Tiny Pointer toolbar with pointers, ink colours and sound" />
+  <img src="./.github/screenshots/toolbar.png" alt="The Hand Pointer toolbar with pointers, ink colours and sound" />
 </p>
 
 
@@ -101,14 +101,14 @@ Nothing underneath gets clicked, and one key puts your normal cursor back.
 
 ## Install
 
-1. Download **TinyPointer.dmg** with the button above.
-2. Open it and drag Tiny Pointer to **Applications**.
-3. Open Tiny Pointer. The first time, macOS says it can't check the developer, because the app is not
+1. Download **HandPointer.dmg** with the button above.
+2. Open it and drag Hand Pointer to **Applications**.
+3. Open Hand Pointer. The first time, macOS says it can't check the developer, because the app is not
    notarized yet. Go to **System Settings → Privacy & Security** and click **Open Anyway**.
 4. Allow **Accessibility** when asked.
 5. Optional: for the zoom loupe, turn on Zoom in **Settings → Zoom** and allow **Screen Recording**.
 
-Tiny Pointer lives in the menu bar. Click its icon or press **⌃⇥** to turn the pointer on.
+Hand Pointer lives in the menu bar. Click its icon or press **⌃⇥** to turn the pointer on.
 
 
 
@@ -152,18 +152,18 @@ Single keys only work while the pointer is on. All shortcuts can be changed in *
 
 ## Permissions And Privacy
 
-- **Accessibility** lets Tiny Pointer catch your clicks and turn them into taps and drawings. Without it,
+- **Accessibility** lets Hand Pointer catch your clicks and turn them into taps and drawings. Without it,
   the hand can't do anything.
 - **Screen Recording** is only needed for the zoom loupe. The picture stays on your Mac and is only used to
   draw the loupe.
-- Tiny Pointer doesn't collect or send any data. The only connection it makes is the update check to this
+- Hand Pointer doesn't collect or send any data. The only connection it makes is the update check to this
   repository's releases.
 
 
 
 ## FAQ
 
-**macOS says Tiny Pointer can't be opened.**
+**macOS says Hand Pointer can't be opened.**
 It isn't notarized by Apple yet. Open it once via **System Settings → Privacy & Security → Open Anyway**.
 
 **The hand doesn't react to clicks.**
@@ -176,13 +176,13 @@ Hold **⌘** and click. You can change that key in **Settings → Shortcuts**.
 
 ## Build From Source
 
-For development only; to just use Tiny Pointer, download the DMG above.
+For development only; to just use Hand Pointer, download the DMG above.
 
 ```bash
 scripts/build-local.sh --install
 ```
 
-Compiles Tiny Pointer from source, signs it with a local certificate, replaces `/Applications/TinyPointer.app`
+Compiles Hand Pointer from source, signs it with a local certificate, replaces `/Applications/HandPointer.app`
 and starts it.
 
 ```bash
@@ -196,7 +196,7 @@ Builds the DMG and the update feed for a release into `dist/release/`. The relea
 
 ## Credits
 
-Tiny Pointer is developed by [Eric Singhartinger](https://github.com/esreverse). It is based on
+Hand Pointer is developed by [Eric Singhartinger](https://github.com/esreverse). It is based on
 [TinyHand](https://github.com/nilbuild/tinyhand) by Kamran Ahmed, used under the MIT License. Number stamps use
 [Playpen Sans](https://github.com/TypeTogether/Playpen-Sans) by TypeTogether, under the SIL Open Font License.
 

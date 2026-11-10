@@ -141,7 +141,7 @@ final class SettingsModel: ObservableObject {
             draftError = problem.message
         } catch {
             draft = nil
-            draftError = "Tiny Pointer couldn't read that file."
+            draftError = "Hand Pointer couldn't read that file."
         }
     }
 
@@ -168,7 +168,7 @@ final class SettingsModel: ObservableObject {
             handIdea = ""
             makingHand = false
         } catch {
-            draftError = "Tiny Pointer couldn't save that hand."
+            draftError = "Hand Pointer couldn't save that hand."
         }
     }
 
@@ -354,7 +354,7 @@ struct SettingsView: View {
                 if let icon = NSImage(named: "settings_icon") ?? NSApp.applicationIconImage {
                     Image(nsImage: icon).resizable().frame(width: 20, height: 20)
                 }
-                Text("Tiny Pointer").font(.system(size: 12, weight: .semibold))
+                Text("Hand Pointer").font(.system(size: 12, weight: .semibold))
                 Spacer()
             }
             .padding(.horizontal, 10)
@@ -426,7 +426,7 @@ private struct GeneralPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             Card(title: "Startup") {
-                Row("Open Tiny Pointer when you log in") {
+                Row("Open Hand Pointer when you log in") {
                     Toggle("", isOn: model.binding({ Preferences.launchAtLogin }, { Preferences.launchAtLogin = $0 }))
                         .toggleStyle(.switch).labelsHidden().focusable(false)
                 }
@@ -1198,7 +1198,7 @@ private struct DrawingPage: View {
 
     private var toolbarCard: some View {
         Card(title: "Toolbar") {
-            Row("Show toolbar", detail: "The bar at the bottom of the screen while Tiny Pointer is on") {
+            Row("Show toolbar", detail: "The bar at the bottom of the screen while Hand Pointer is on") {
                 Toggle("", isOn: model.binding({ Preferences.showToolbar }, { Preferences.showToolbar = $0 }))
                     .toggleStyle(.switch).labelsHidden().focusable(false)
             }
@@ -1436,7 +1436,7 @@ private struct AboutPage: View {
                     Image(nsImage: icon).resizable().frame(width: 72, height: 72)
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Tiny Pointer").font(.system(size: 18, weight: .bold))
+                    Text("Hand Pointer").font(.system(size: 18, weight: .bold))
                     Text("Version \(version)").font(.system(size: 12)).foregroundColor(.secondary)
                     Text("A tiny hand on a stick for your Mac. Free and open source").font(.system(size: 12)).foregroundColor(.secondary)
                 }
@@ -1445,8 +1445,8 @@ private struct AboutPage: View {
             Card(title: nil) {
                 LinkRow(title: "Made by", detail: "Eric Singhartinger", url: "https://github.com/esreverse")
                 LinkRow(title: "Website", detail: "esreverse.com", url: "https://esreverse.com")
-                LinkRow(title: "Source code", detail: "github.com/esreverse/tinypointer", url: "https://github.com/esreverse/tinypointer")
-                LinkRow(title: "License", detail: "MIT", url: "https://github.com/esreverse/tinypointer/blob/main/LICENSE")
+                LinkRow(title: "Source code", detail: "github.com/esreverse/handpointer", url: "https://github.com/esreverse/handpointer")
+                LinkRow(title: "License", detail: "MIT", url: "https://github.com/esreverse/handpointer/blob/main/LICENSE")
                 LinkRow(title: "Based on", detail: "TinyHand by Kamran Ahmed", url: "https://github.com/nilbuild/tinyhand")
             }
             HStack {
@@ -1745,7 +1745,7 @@ private struct MakeHandPage: View {
                     PlainField(placeholder: "My hand", text: Binding(get: { model.handName }, set: { model.handName = String($0.prefix(16)) }))
                         .frame(width: 220)
                 }
-                Text("It should show the back of the hand, like the ones in Tiny Pointer. If you see the palm, try another image")
+                Text("It should show the back of the hand, like the ones in Hand Pointer. If you see the palm, try another image")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

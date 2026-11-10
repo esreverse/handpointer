@@ -1,19 +1,19 @@
 #!/bin/bash
 
-APP_NAME="TinyPointer"
+APP_NAME="HandPointer"
 # The name people see (Finder, menus, update dialog, DMG). Files keep APP_NAME, so links
-# such as …/releases/latest/download/TinyPointer.dmg and existing installs keep working.
-DISPLAY_NAME="Tiny Pointer"
-BUNDLE_ID="com.esreverse.tinypointer"
-REPO="esreverse/tinypointer"
+# such as …/releases/latest/download/HandPointer.dmg and existing installs keep working.
+DISPLAY_NAME="Hand Pointer"
+BUNDLE_ID="com.esreverse.handpointer"
+REPO="esreverse/handpointer"
 FEED_URL="https://github.com/$REPO/releases/latest/download/appcast.xml"
 SPARKLE_PUBLIC_KEY="d31v6pqelkiQTCGCRAuqbfwpbTPGdNqkNQmTHDyba/Y="
 SPARKLE_VERSION="2.10.0"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${TINYPOINTER_VERSION:-$(tr -d '[:space:]' < "$ROOT/VERSION")}"
+VERSION="${HANDPOINTER_VERSION:-$(tr -d '[:space:]' < "$ROOT/VERSION")}"
 
 # Builds outside the repo (synced folders such as Google Drive break SwiftPM's build database).
-BUILD_DIR="${BUILD_DIR:-$HOME/Library/Caches/tinypointer-build}"
+BUILD_DIR="${BUILD_DIR:-$HOME/Library/Caches/handpointer-build}"
 
 # Without full Xcode, the newest Command Line Tools SDK may lack the SwiftUI macro plugin;
 # fall back to the newest macOS 26 SDK. Override with SDKROOT.
