@@ -7,7 +7,7 @@ import ScreenCaptureKit
 /// At 1× it is a flashlight instead: no loupe window and no capture, only the screen darkened
 /// around the pointer, so it works without Screen Recording permission.
 ///
-/// The screen is captured with ScreenCaptureKit (needs Screen Recording permission). HandPointer's own
+/// The screen is captured with ScreenCaptureKit (needs Screen Recording permission). QuiteHandy's own
 /// windows are left out of the capture, so the hand, the ink and the toolbar never show up inside it.
 /// Capture starts when the key is first held and stops a few seconds after the loupe has closed.
 final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
@@ -30,7 +30,7 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
     private var streamDisplay: CGDirectDisplayID?
     private var hasFrame = false
     private var askedPermission = false
-    private let queue = DispatchQueue(label: "handpointer.magnifier")
+    private let queue = DispatchQueue(label: "quitehandy.magnifier")
 
     private var zoom: CGFloat = 1
     private var target: CGFloat = 1

@@ -41,11 +41,11 @@ jobs:
       - name: Take the version and release notes from the tag
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          echo "HANDPOINTER_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          echo "QUITEHANDY_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
           git fetch --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
           NOTES="$(git for-each-ref "refs/tags/$GITHUB_REF_NAME" --format='%(contents)')"
           if [ -z "$NOTES" ]; then
-            NOTES="Download the DMG, open it and drag Hand Pointer to Applications. Runs on Apple silicon and Intel, macOS 13 or later."
+            NOTES="Download the DMG, open it and drag Quite Handy to Applications. Runs on Apple silicon and Intel, macOS 13 or later."
           fi
           {
             echo 'RELEASE_NOTES<<RELEASE_NOTES_EOF'
@@ -64,7 +64,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: HandPointer-dmg
+          name: QuiteHandy-dmg
           path: |
             dist/release/*.dmg
             dist/release/*.sha256
@@ -77,8 +77,8 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           gh release create "$GITHUB_REF_NAME" \
-            "dist/release/HandPointer-$VERSION.dmg" "dist/release/HandPointer-$VERSION.dmg.sha256" \
-            dist/release/HandPointer.dmg \
+            "dist/release/QuiteHandy-$VERSION.dmg" "dist/release/QuiteHandy-$VERSION.dmg.sha256" \
+            dist/release/QuiteHandy.dmg \
             dist/release/appcast.xml \
             --title "$VERSION" --notes "$RELEASE_NOTES"
 

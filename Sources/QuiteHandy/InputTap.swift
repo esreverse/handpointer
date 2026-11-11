@@ -138,7 +138,7 @@ final class InputTap {
             ready.signal()
             CFRunLoopRun()
         }
-        thread.name = "HandPointer event tap"
+        thread.name = "QuiteHandy event tap"
         thread.qualityOfService = .userInteractive
         thread.start()
         ready.wait()

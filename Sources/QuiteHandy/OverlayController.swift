@@ -520,7 +520,7 @@ final class OverlayController {
         runTimer(every: OverlayController.busyInterval)
 
         activity = ProcessInfo.processInfo.beginActivity(
-            options: [.userInitiated, .latencyCritical], reason: "HandPointer pointer is on")
+            options: [.userInitiated, .latencyCritical], reason: "QuiteHandy pointer is on")
         let installed = inputTap.install()
         inputTap.interactKey = Preferences.interactKey.cgFlags
         inputTap.setActive(installed)

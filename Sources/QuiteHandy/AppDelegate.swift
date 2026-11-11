@@ -98,7 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(.separator())
-        let quit = NSMenuItem(title: "Quit Hand Pointer", action: #selector(quit), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit Quite Handy", action: #selector(quit), keyEquivalent: "q")
         quit.image = NSImage(systemSymbolName: "power", accessibilityDescription: nil)
         menu.addItem(quit)
         menu.items.forEach { $0.target = self }
@@ -365,13 +365,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let on = overlay.isActive
         let image = Bundle.main.image(forResource: on ? "menubar_on" : "menubar_off")
             ?? NSImage(systemSymbolName: on ? "hand.point.up.left.fill" : "hand.point.up.left",
-                       accessibilityDescription: "Hand Pointer")
+                       accessibilityDescription: "Quite Handy")
         image?.size = NSSize(width: 18, height: 18)
         image?.isTemplate = true
         statusItem.button?.image = image
         statusItem.button?.toolTip = overlay.isActive
-            ? "Hand Pointer is on — click to turn off, right-click for the menu"
-            : "Hand Pointer — click to turn on, right-click for the menu"
+            ? "Quite Handy is on, click to turn off, right-click for the menu"
+            : "Quite Handy, click to turn on, right-click for the menu"
     }
 
     private func editingMenu() -> NSMenu {
@@ -379,7 +379,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        appMenu.addItem(withTitle: "Quit Hand Pointer", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: "Quit Quite Handy", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
         main.addItem(appItem)
         let editItem = NSMenuItem()

@@ -1,21 +1,21 @@
 <p>
-  <a href="https://github.com/esreverse/handpointer/releases/latest"><img src="https://img.shields.io/github/v/release/esreverse/handpointer?display_name=tag&sort=semver" alt="Latest release" /></a>
+  <a href="https://github.com/esreverse/quitehandy/releases/latest"><img src="https://img.shields.io/github/v/release/esreverse/quitehandy?display_name=tag&sort=semver" alt="Latest release" /></a>
   <img src="https://img.shields.io/badge/macOS-13%2B-lightgrey" alt="macOS 13 or later" />
   <img src="https://img.shields.io/badge/Apple_Silicon_%26_Intel-universal-lightgrey" alt="Apple Silicon and Intel" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" /></a>
 </p>
 
-<img src="./.github/banner.png" alt="Hand Pointer: for when you need a hand to point things out on your screen" />
+<img src="./.github/banner.png" alt="Quite Handy: for when you need a hand to point things out on your screen" />
 
 
 
-# Hand Pointer
+# Quite Handy
 
 **A tiny hand on a stick for your Mac.** Turn it on, and your cursor becomes a hand that points, taps and
 draws on top of everything on screen. Made for demos, screen recordings, teaching and video calls.
 Nothing underneath gets clicked, and one key puts your normal cursor back.
 
-**[Download for macOS](https://github.com/esreverse/handpointer/releases/latest/download/HandPointer.dmg)**
+**[Download for macOS](https://github.com/esreverse/quitehandy/releases/latest/download/QuiteHandy.dmg)**
 
 
 
@@ -43,7 +43,7 @@ Nothing underneath gets clicked, and one key puts your normal cursor back.
 - **Updates itself:** New versions install automatically; a manual check shows what is new.
 
 <p align="center">
-  <img src="./.github/screenshots/toolbar.png" alt="The Hand Pointer toolbar with pointers and ink colours" />
+  <img src="./.github/screenshots/toolbar.png" alt="The Quite Handy toolbar with pointers and ink colours" />
 </p>
 
 
@@ -105,14 +105,14 @@ Nothing underneath gets clicked, and one key puts your normal cursor back.
 
 ## Install
 
-1. Download **HandPointer.dmg** with the button above.
-2. Open it and drag Hand Pointer to **Applications**.
-3. Open Hand Pointer. The first time, macOS says it can't check the developer, because the app is not
+1. Download **QuiteHandy.dmg** with the button above.
+2. Open it and drag Quite Handy to **Applications**.
+3. Open Quite Handy. The first time, macOS says it can't check the developer, because the app is not
    notarized yet. Go to **System Settings → Privacy & Security** and click **Open Anyway**.
 4. Allow **Accessibility** when asked.
 5. Optional: to zoom, turn on Zoom in **Settings → Flashlight/Loupe** and allow **Screen Recording**.
 
-Hand Pointer lives in the menu bar. Click its icon or press **⌃⇥** to turn the pointer on.
+Quite Handy lives in the menu bar. Click its icon or press **⌃⇥** to turn the pointer on.
 
 
 
@@ -157,18 +157,18 @@ Single keys only work while the pointer is on. All shortcuts can be changed in *
 
 ## Permissions And Privacy
 
-- **Accessibility** lets Hand Pointer catch your clicks and turn them into taps and drawings. Without it,
+- **Accessibility** lets Quite Handy catch your clicks and turn them into taps and drawings. Without it,
   the hand can't do anything.
 - **Screen Recording** is only needed for the zoom loupe. The picture stays on your Mac and is only used to
   draw the loupe.
-- Hand Pointer doesn't collect or send any data. The only connection it makes is the update check to this
+- Quite Handy doesn't collect or send any data. The only connection it makes is the update check to this
   repository's releases.
 
 
 
 ## FAQ
 
-**macOS says Hand Pointer can't be opened.**
+**macOS says Quite Handy can't be opened.**
 It isn't notarized by Apple yet. Open it once via **System Settings → Privacy & Security → Open Anyway**.
 
 **The hand doesn't react to clicks.**
@@ -181,13 +181,13 @@ Hold **⌘** and click. You can change that key in **Settings → Shortcuts**.
 
 ## Build From Source
 
-For development only; to just use Hand Pointer, download the DMG above.
+For development only; to just use Quite Handy, download the DMG above.
 
 ```bash
 scripts/build-local.sh --install
 ```
 
-Compiles Hand Pointer from source, signs it with a local certificate, replaces `/Applications/HandPointer.app`
+Compiles Quite Handy from source, signs it with a local certificate, replaces `/Applications/QuiteHandy.app`
 and starts it.
 
 ```bash
@@ -201,7 +201,7 @@ Builds the DMG and the update feed for a release into `dist/release/`. The relea
 
 ## Credits
 
-Hand Pointer is developed by [Eric Singhartinger](https://github.com/esreverse). It is based on
+Quite Handy is developed by [Eric Singhartinger](https://github.com/esreverse). It is based on
 [TinyHand](https://github.com/nilbuild/tinyhand) by Kamran Ahmed, used under the MIT License. Number stamps use
 [Playpen Sans](https://github.com/TypeTogether/Playpen-Sans) by TypeTogether, under the SIL Open Font License.
 

@@ -2,7 +2,7 @@ import AppKit
 
 enum HandMaker {
     static let prompt = """
-    Make a pointer image for Hand Pointer, a Mac app that shows a toy hand on screen.
+    Make a pointer image for Quite Handy, a Mac app that shows a toy hand on screen.
 
     Draw one cartoon right hand in this style: [describe your hand, e.g. knitted wool in mustard yellow]
 
@@ -42,12 +42,12 @@ enum HandMaker {
     static func make(from url: URL) throws -> (image: CGImage, ink: UInt32) {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
-            throw Problem(message: "That file isn't an image Hand Pointer can read.")
+            throw Problem(message: "That file isn't an image Quite Handy can read.")
         }
         let pixels = try read(image)
         try check(pixels)
         guard let composed = compose(image, pixels) else {
-            throw Problem(message: "Hand Pointer couldn't put that hand on a stick.")
+            throw Problem(message: "Quite Handy couldn't put that hand on a stick.")
         }
         return (composed, ink(pixels))
     }
@@ -68,7 +68,7 @@ enum HandMaker {
         guard let ctx = CGContext(data: &rgba, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
                                   space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
-            throw Problem(message: "That file isn't an image Hand Pointer can read.")
+            throw Problem(message: "That file isn't an image Quite Handy can read.")
         }
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
         return Pixels(width: w, height: h, rgba: rgba)
@@ -303,7 +303,7 @@ enum HandMaker {
 
     static func write(_ image: CGImage, to url: URL) throws {
         guard let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else {
-            throw Problem(message: "Hand Pointer couldn't save the hand.")
+            throw Problem(message: "Quite Handy couldn't save the hand.")
         }
         try data.write(to: url, options: .atomic)
     }
@@ -316,7 +316,7 @@ struct CustomHand: Codable {
 }
 
 enum CustomHands {
-    static let changed = Notification.Name("HandPointerCustomHandsChanged")
+    static let changed = Notification.Name("QuiteHandyCustomHandsChanged")
 
     static var directory: URL {
         if let override = ProcessInfo.processInfo.environment["TH_HANDS_DIR"] {
@@ -324,7 +324,7 @@ enum CustomHands {
         }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
-        return base.appendingPathComponent("HandPointer/Hands", isDirectory: true)
+        return base.appendingPathComponent("QuiteHandy/Hands", isDirectory: true)
     }
 
     private static var listURL: URL {
@@ -359,7 +359,7 @@ enum CustomHands {
         list.append(CustomHand(id: id, name: trimmed.isEmpty ? "My hand \(list.count + 1)" : String(trimmed.prefix(16)), ink: ink))
         try save(list)
         guard let style = PointerStyle(rawValue: id) else {
-            throw HandMaker.Problem(message: "Hand Pointer couldn't add that hand.")
+            throw HandMaker.Problem(message: "Quite Handy couldn't add that hand.")
         }
         return style
     }

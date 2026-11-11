@@ -1,8 +1,8 @@
 #!/bin/bash
-# Build HandPointer for use on this Mac only (not notarized; see release.sh for that).
+# Build QuiteHandy for use on this Mac only (not notarized; see release.sh for that).
 #
-#   scripts/build-local.sh            build into ~/Library/Caches/handpointer-build/dist
-#   scripts/build-local.sh --install  also replace /Applications/HandPointer.app and start it
+#   scripts/build-local.sh            build into ~/Library/Caches/quitehandy-build/dist
+#   scripts/build-local.sh --install  also replace /Applications/QuiteHandy.app and start it
 #
 # - Builds outside the repo (BUILD_DIR), because synced folders such as Google Drive
 #   break SwiftPM's build database.

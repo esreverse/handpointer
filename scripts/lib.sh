@@ -1,19 +1,19 @@
 #!/bin/bash
 
-APP_NAME="HandPointer"
+APP_NAME="QuiteHandy"
 # The name people see (Finder, menus, update dialog, DMG). Files keep APP_NAME, so links
-# such as …/releases/latest/download/HandPointer.dmg and existing installs keep working.
-DISPLAY_NAME="Hand Pointer"
-BUNDLE_ID="com.esreverse.handpointer"
-REPO="esreverse/handpointer"
+# such as …/releases/latest/download/QuiteHandy.dmg and existing installs keep working.
+DISPLAY_NAME="Quite Handy"
+BUNDLE_ID="com.esreverse.quitehandy"
+REPO="esreverse/quitehandy"
 FEED_URL="https://github.com/$REPO/releases/latest/download/appcast.xml"
 SPARKLE_PUBLIC_KEY="d31v6pqelkiQTCGCRAuqbfwpbTPGdNqkNQmTHDyba/Y="
 SPARKLE_VERSION="2.10.0"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${HANDPOINTER_VERSION:-$(tr -d '[:space:]' < "$ROOT/VERSION")}"
+VERSION="${QUITEHANDY_VERSION:-$(tr -d '[:space:]' < "$ROOT/VERSION")}"
 
 # Builds outside the repo (synced folders such as Google Drive break SwiftPM's build database).
-BUILD_DIR="${BUILD_DIR:-$HOME/Library/Caches/handpointer-build}"
+BUILD_DIR="${BUILD_DIR:-$HOME/Library/Caches/quitehandy-build}"
 
 # Without full Xcode, the newest Command Line Tools SDK may lack the SwiftUI macro plugin;
 # fall back to the newest macOS 26 SDK. Override with SDKROOT.

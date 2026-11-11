@@ -202,7 +202,7 @@ enum InkChoice: String, CaseIterable {
 }
 
 enum Preferences {
-    static let changed = Notification.Name("HandPointerPreferencesChanged")
+    static let changed = Notification.Name("QuiteHandyPreferencesChanged")
     private static let defaults = UserDefaults.standard
 
     static var toggleShortcut: Shortcut {
@@ -515,7 +515,7 @@ enum Preferences {
         }
     }
 
-    /// HandPointer was TinyHand (bundle com.kamranahmed.tinyhand). Copies its settings once,
+    /// QuiteHandy was TinyHand (bundle com.kamranahmed.tinyhand). Copies its settings once,
     /// leaving out what belongs to that app alone (open-at-login setup, update checks).
     static func migrateFromTinyHand() {
         let flag = "migratedFromTinyHand"

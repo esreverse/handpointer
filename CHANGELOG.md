@@ -1,6 +1,6 @@
 # Changelog
 
-What changed in each version of Hand Pointer. The section for a version is shown in the update dialog,
+What changed in each version of Quite Handy. The section for a version is shown in the update dialog,
 so write it for people using the app.
 
 

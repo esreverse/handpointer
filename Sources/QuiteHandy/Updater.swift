@@ -64,7 +64,7 @@ private final class VersionedUserDriver: SPUStandardUserDriver {
 
     override func showUpdaterError(_ error: Error, acknowledgement: @escaping () -> Void) {
         let installed = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
-        var versions = "You have Hand Pointer \(installed)."
+        var versions = "You have Quite Handy \(installed)."
         if let update = updateVersion {
             versions += " The update was \(update)."
         }
