@@ -30,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.refreshMenu()
         }
         overlay.extraPassThrough = { [weak self] in
-            guard let frame = self?.statusItem.button?.window?.frame else {
+            guard self?.statusItem.isVisible == true, let frame = self?.statusItem.button?.window?.frame else {
                 return []
             }
             return [frame]
@@ -49,7 +49,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         if !UserDefaults.standard.bool(forKey: WelcomeWindow.shownKey) || !AXIsProcessTrusted() {
             welcome.show()
+        } else if !Preferences.showMenuBarIcon {
+            // Without the menu bar icon there is nothing to click, so starting the app shows Settings.
+            openSettings()
         }
+    }
+
+    /// Opening the app again (Finder, Spotlight) shows Settings – the way back in while the
+    /// menu bar icon is hidden.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        openSettings()
+        return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -58,12 +68,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.isVisible = Preferences.showMenuBarIcon
+        NotificationCenter.default.addObserver(forName: Preferences.changed, object: nil, queue: .main) { [weak self] _ in
+            guard let item = self?.statusItem, item.isVisible != Preferences.showMenuBarIcon else {
+                return
+            }
+            item.isVisible = Preferences.showMenuBarIcon
+        }
         updateIcon()
         statusItem.button?.target = self
         statusItem.button?.action = #selector(statusClicked)
         statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
 
-        let permission = NSMenuItem(title: "Allow Accessibility…", action: #selector(showWelcome), keyEquivalent: "")
+        let permission = NSMenuItem(title: "Allow Accessibility", action: #selector(showWelcome), keyEquivalent: "")
         permissionItem = permission
         menu.addItem(permission)
         let toggle = NSMenuItem(title: "", action: #selector(toggle), keyEquivalent: "")
@@ -79,9 +96,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(toolbar)
         menu.addItem(sound)
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
+        menu.addItem(NSMenuItem(title: "Settings", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit Hand Pointer", action: #selector(quit), keyEquivalent: "q"))
+        let quit = NSMenuItem(title: "Quit Hand Pointer", action: #selector(quit), keyEquivalent: "q")
+        quit.image = NSImage(systemSymbolName: "power", accessibilityDescription: nil)
+        menu.addItem(quit)
         menu.items.forEach { $0.target = self }
         menu.delegate = self
     }
@@ -127,6 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    /// Left-click turns the pointer on or off, right-click (or Control-click) opens the menu.
     @objc private func statusClicked() {
         let event = NSApp.currentEvent
         let wantsMenu = event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true
@@ -160,7 +180,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func refreshMenu() {
-        toggleItem?.title = "Toggle Pointer On/Off"
+        toggleItem?.title = "Toggle On/Off"
         setShortcut(toggleItem, Preferences.toggleShortcut)
         setShortcut(clearItem, Preferences.clearShortcut)
         setShortcut(toolbarItem, Preferences.toolbarShortcut)
@@ -171,9 +191,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private enum ShortcutAction: CaseIterable {
         case toggle, clear, undo, redo, toolbar, rainbowInk, matchInk, nextPointer, previousPointer, sound, settings
 
-        /// Only grabbed while the pointer is on: ⌘, opens Settings then, as in any app,
-        /// without taking ⌘, away from other apps the rest of the time.
-        var onlyWhileActive: Bool { self == .settings || shortcut.isBare }
+        /// Everything but the on/off shortcut is only grabbed while the pointer is on, so keys like
+        /// ⌘Z or ⌘, keep working in other apps the rest of the time.
+        var onlyWhileActive: Bool { self != .toggle }
 
         var shortcut: Shortcut {
             get {

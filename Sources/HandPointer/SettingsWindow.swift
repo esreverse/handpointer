@@ -186,7 +186,8 @@ final class ShortcutRecorder: NSButton {
     private static func keycap(_ key: String) -> NSView {
         let label = NSTextField(labelWithString: key)
         label.font = .systemFont(ofSize: 12, weight: .medium)
-        label.textColor = .labelColor
+        // Keys look like the white pop-up menus next to them: black on white, in both modes.
+        label.textColor = .black
         label.alignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
         let cap = KeyCap()
@@ -222,8 +223,8 @@ final class ShortcutRecorder: NSButton {
 
         private func refresh() {
             effectiveAppearance.performAsCurrentDrawingAppearance {
-                layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.1).cgColor
-                layer?.borderColor = NSColor.labelColor.withAlphaComponent(0.18).cgColor
+                layer?.backgroundColor = NSColor.white.cgColor
+                layer?.borderColor = NSColor.black.withAlphaComponent(0.15).cgColor
                 layer?.shadowColor = NSColor.black.cgColor
                 layer?.shadowOpacity = 0.15
                 layer?.shadowRadius = 0

@@ -136,7 +136,7 @@ final class Toolbar {
         ])
 
         let handle = Handle()
-        tips[handle] = "Drag to move – right-click to reset"
+        tips[handle] = "Drag to move, right-click to reset"
         handle.translatesAutoresizingMaskIntoConstraints = false
         handle.widthAnchor.constraint(equalToConstant: 28).isActive = true
         handle.heightAnchor.constraint(equalToConstant: 40).isActive = true
@@ -158,11 +158,7 @@ final class Toolbar {
         let divider = Toolbar.divider()
         inkDivider = divider
         stack.addArrangedSubview(divider)
-        let sound = makeButton(symbol: "speaker.wave.2.fill", tip: "Sound") { [weak self] in
-            self?.onToggleSound?()
-        }
-        soundButton = sound
-        stack.addArrangedSubview(sound)
+        // No sound button in the toolbar: sound is toggled with its shortcut, the menu or Settings.
         stack.addArrangedSubview(makeButton(symbol: "xmark", tip: "Exit (Esc)") { [weak self] in
             self?.onExit?()
         })
@@ -307,7 +303,7 @@ final class Toolbar {
     func setSoundOn(_ on: Bool) {
         let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
         let name = on ? "speaker.wave.2.fill" : "speaker.slash.fill"
-        let tip = (on ? "Sound on – click to mute" : "Sound off – click to unmute") + " (\(Preferences.soundShortcut.display))"
+        let tip = (on ? "Sound on, click to mute" : "Sound off, click to unmute") + " (\(Preferences.soundShortcut.display))"
         soundButton?.image = NSImage(systemSymbolName: name, accessibilityDescription: tip)?.withSymbolConfiguration(config)
         if let b = soundButton {
             tips[b] = tip
@@ -466,7 +462,7 @@ final class Toolbar {
         if let choice = swatches.first(where: { $0.value === view })?.key {
             switch choice {
             case .rainbow: return "Rainbow (\(Preferences.rainbowInkShortcut.display))"
-            case .match: return "Automatic colour – matches the pointer (\(Preferences.matchInkShortcut.display))"
+            case .match: return "Automatic colour, matches the pointer (\(Preferences.matchInkShortcut.display))"
             default: return choice.title
             }
         }
@@ -705,12 +701,12 @@ final class Toolbar {
         NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
             let c = CGPoint(x: rect.midX, y: rect.midY)
             let r: CGFloat = 13
-            NSColor(white: 0, alpha: 0.35).setFill()
-            NSBezierPath(ovalIn: CGRect(x: c.x - r - 1.5, y: c.y - r - 2.5, width: 2 * r + 3, height: 2 * r + 3)).fill()
             (NSColor(cgColor: color) ?? .white).setFill()
             NSBezierPath(ovalIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)).fill()
-            NSColor(white: 1, alpha: 0.35).setFill()
-            NSBezierPath(ovalIn: CGRect(x: c.x - r * 0.55, y: c.y + r * 0.15, width: r * 0.7, height: r * 0.5)).fill()
+            NSColor(white: 1, alpha: 0.3).setStroke()
+            let outline = NSBezierPath(ovalIn: CGRect(x: c.x - r + 0.5, y: c.y - r + 0.5, width: 2 * r - 1, height: 2 * r - 1))
+            outline.lineWidth = 1
+            outline.stroke()
             return true
         }
     }
@@ -721,8 +717,6 @@ final class Toolbar {
         NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
             let c = CGPoint(x: rect.midX, y: rect.midY)
             let r: CGFloat = 13
-            NSColor(white: 0, alpha: 0.35).setFill()
-            NSBezierPath(ovalIn: CGRect(x: c.x - r - 1.5, y: c.y - r - 2.5, width: 2 * r + 3, height: 2 * r + 3)).fill()
             NSColor.white.setFill()
             NSBezierPath(ovalIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)).fill()
             let text = NSAttributedString(string: "A", attributes: [
@@ -739,8 +733,6 @@ final class Toolbar {
         NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
             let c = CGPoint(x: rect.midX, y: rect.midY)
             let r: CGFloat = 13
-            NSColor(white: 0, alpha: 0.35).setFill()
-            NSBezierPath(ovalIn: CGRect(x: c.x - r - 1.5, y: c.y - r - 2.5, width: 2 * r + 3, height: 2 * r + 3)).fill()
             let colors: [NSColor] = [.systemRed, .systemOrange, .systemYellow, .systemGreen, .systemBlue, .systemPurple]
             for (i, color) in colors.enumerated() {
                 let path = NSBezierPath()

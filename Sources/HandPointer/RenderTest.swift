@@ -50,7 +50,7 @@ enum RenderTest {
             view.ink.extend(to: target)
             if ProcessInfo.processInfo.environment["TH_STAMPS"] != nil {
                 for k in 0..<4 {
-                    view.ink.beginStamp(at: CGPoint(x: target.x - 120 + CGFloat(k) * 52, y: target.y + 110))
+                    view.ink.beginStamp(at: CGPoint(x: target.x - 120 + CGFloat(k) * 52, y: target.y + 110), number: k + 1)
                     view.ink.endStamp()
                 }
             }
@@ -60,7 +60,7 @@ enum RenderTest {
             view.aim(cursor: target)
             view.layer?.render(in: ctx)
 
-            if style != .laser && ProcessInfo.processInfo.environment["TH_NO_MARKER"] == nil {
+            if ProcessInfo.processInfo.environment["TH_NO_MARKER"] == nil {
                 ctx.setFillColor(CGColor(red: 0.95, green: 0.8, blue: 0.1, alpha: 1))
                 ctx.fillEllipse(in: CGRect(x: target.x - 3, y: target.y - 3, width: 6, height: 6))
             }

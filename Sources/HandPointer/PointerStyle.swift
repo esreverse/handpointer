@@ -19,7 +19,6 @@ struct PointerStyle: Hashable {
     static let coral = PointerStyle("coral")
     static let plush = PointerStyle("plush")
     static let robot = PointerStyle("robot")
-    static let laser = PointerStyle("laser")
     /// Color pointer: no hand, a dot at the cursor in the stroke's size, colour and opacity.
     static let stroke = PointerStyle("stroke")
 
@@ -70,7 +69,7 @@ struct PointerStyle: Hashable {
     }
 
     static var allCases: [PointerStyle] {
-        builtInHands + customHands + [.laser, .stroke]
+        builtInHands + customHands + [.stroke]
     }
 
     /// The pointers shown in the toolbar: the pinned ones, always followed by the stroke dot.
@@ -85,9 +84,6 @@ struct PointerStyle: Hashable {
     }
 
     var title: String {
-        if self == .laser {
-            return "Laser dot"
-        }
         if self == .stroke {
             return "Color pointer"
         }
@@ -98,7 +94,7 @@ struct PointerStyle: Hashable {
     }
 
     var assetName: String? {
-        if self == .laser || self == .stroke {
+        if self == .stroke {
             return nil
         }
         if isCustom {
@@ -108,9 +104,6 @@ struct PointerStyle: Hashable {
     }
 
     var inkColor: CGColor {
-        if self == .laser {
-            return Ink.red
-        }
         if self == .stroke {
             // The color pointer has no colour of its own: with automatic colour it draws white.
             return Ink.hex(0xFFFFFF)
@@ -126,8 +119,9 @@ struct PointerStyle: Hashable {
     static var saved: PointerStyle {
         get {
             let raw = UserDefaults.standard.string(forKey: defaultsKey)
-            if raw == "dot" {
-                return .laser
+            // The laser dot is gone: the color pointer is the closest thing to it.
+            if raw == "dot" || raw == "laser" {
+                return .stroke
             }
             if raw == "sunny" {
                 return .coral

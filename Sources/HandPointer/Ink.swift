@@ -36,10 +36,10 @@ final class Ink {
     private var startHue: CGFloat = 0
     /// Cycle length of the current rainbow line, fixed when it starts.
     private var cycle: CGFloat = 8000
-    /// Rainbow lines drawn since the last clear; each one starts `Preferences.rainbowStep` degrees further.
+    /// Rainbow lines drawn since the last clear.
     private var rainbowLines = 0
-    /// Hue where the last rainbow line was lifted, in degrees. Taps use it, and with a shift of 0°
-    /// the next line carries on from it.
+    /// Hue where the last rainbow line was lifted, in degrees. Taps use it, and the next line
+    /// starts from it plus the shift.
     private var lastRainbowHue: CGFloat = 0
 
     /// Colour for the tap circle: with rainbow ink the colour where the last line ended
@@ -86,11 +86,12 @@ final class Ink {
             window = StrokeSmoothing.allCases.last?.window ?? window
         }
         if rainbow {
-            if Preferences.rainbowStep == 0 {
-                // No shift: keep drawing in the colour the last line ended with.
-                startHue = lastRainbowHue
+            // The first line starts at red; each next one starts where the last line ended,
+            // shifted by `Preferences.rainbowStep` degrees.
+            if rainbowLines == 0 {
+                startHue = 0
             } else {
-                startHue = CGFloat((rainbowLines * Preferences.rainbowStep) % 360)
+                startHue = (lastRainbowHue + CGFloat(Preferences.rainbowStep)).truncatingRemainder(dividingBy: 360)
             }
             cycle = Ink.rainbowCycle
             rainbowLines += 1
@@ -367,6 +368,8 @@ final class Ink {
         /// A stamp removed with a click.
         case remove(CALayer, number: Int)
         case move(CALayer, from: CGPoint, to: CGPoint)
+        /// Stamps that got other numbers (two of them when numbers were swapped).
+        case renumber([(layer: CALayer, from: Int, to: Int)])
     }
 
     private var undoSteps: [Step] = []
@@ -424,6 +427,12 @@ final class Ink {
             }
             l.position = forward ? to : from
             return true
+        case let .renumber(changes):
+            guard changes.allSatisfy({ $0.layer.superlayer != nil }) else {
+                return false
+            }
+            setNumbers(changes.map { ($0.layer, forward ? $0.to : $0.from) })
+            return true
         }
     }
 
@@ -462,52 +471,123 @@ final class Ink {
     private var grabbedFrom = CGPoint.zero
 
     /// Mouse down with the stamp key: grab the stamp under the pointer, or put down a new one.
-    func pressStamp(at point: CGPoint) {
+    /// False when nothing happens: all nine numbers are already on screen.
+    @discardableResult
+    func pressStamp(at point: CGPoint) -> Bool {
         endStamp()
         stampList.removeAll { $0.layer.superlayer == nil }
         placingStart = point
         placingMoved = false
-        if let hit = stampList.last(where: {
-            hypot($0.layer.position.x - point.x, $0.layer.position.y - point.y) <= $0.layer.bounds.width / 2
-        }) {
-            placing = hit.layer
+        if let hit = stamp(at: point) {
+            placing = hit
             placingExisting = true
-            grabbedFrom = hit.layer.position
-            grabOffset = CGPoint(x: hit.layer.position.x - point.x, y: hit.layer.position.y - point.y)
-            return
+            grabbedFrom = hit.position
+            grabOffset = CGPoint(x: hit.position.x - point.x, y: hit.position.y - point.y)
+            return true
         }
+        guard stampList.count < Ink.maxStamps else {
+            return false
+        }
+        // Count up; once past 9, carry on with the smallest number that is free again.
+        let next = (stampList.map(\.number).max() ?? 0) + 1
+        let number = next <= Ink.maxStamps ? next
+            : (1...Ink.maxStamps).first { n in !stampList.contains { $0.number == n } } ?? Ink.maxStamps
         placingExisting = false
         grabOffset = .zero
-        beginStamp(at: point)
+        beginStamp(at: point, number: number)
+        return true
+    }
+
+    /// Only single digits: at most nine stamps, numbered up to 9.
+    static let maxStamps = 9
+    private static let stampDiameter: CGFloat = 42
+    private static let maxStampDiameter: CGFloat = 200
+    /// Holding still on a new stamp makes it grow after this long, to the largest size in `growTime`.
+    private static let growDelay: TimeInterval = 0
+    private static let growTime: TimeInterval = 1.6
+    private var growTimer: Timer?
+    /// Called when a growing stamp reached its largest size and was put down on its own.
+    var onStampPopped: (() -> Void)?
+
+    /// The stamp under `point`, if any.
+    func stamp(at point: CGPoint) -> CALayer? {
+        stampList.last(where: {
+            $0.layer.superlayer != nil
+                && hypot($0.layer.position.x - point.x, $0.layer.position.y - point.y) <= $0.layer.bounds.width / 2
+        })?.layer
+    }
+
+    /// Gives the stamp under `point` the number `number` (numbers may repeat).
+    func renumberStamp(at point: CGPoint, to number: Int) {
+        guard (1...Ink.maxStamps).contains(number), let target = stamp(at: point),
+              let index = stampList.firstIndex(where: { $0.layer === target }) else {
+            return
+        }
+        let old = stampList[index].number
+        guard old != number else {
+            return
+        }
+        let changes = [(target, old, number)]
+        setNumbers(changes.map { ($0.0, $0.2) })
+        record(.renumber(changes.map { (layer: $0.0, from: $0.1, to: $0.2) }))
+    }
+
+    private func setNumbers(_ numbers: [(CALayer, Int)]) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for (l, n) in numbers {
+            if let i = stampList.firstIndex(where: { $0.layer === l }) {
+                stampList[i].number = n
+            }
+            drawStamp(l, number: n)
+        }
+        CATransaction.commit()
     }
 
     /// The stamp being placed: it follows the mouse until the button is released.
     private var placing: CALayer?
 
-    /// Puts down the next number stamp – a filled circle in the current ink colour and line
-    /// opacity, with a Playpen Sans number (weight 600) – and lets it follow the mouse.
-    func beginStamp(at point: CGPoint) {
-        let stampNumber = (stampList.map(\.number).max() ?? 0) + 1
-        let text = "\(stampNumber)"
-        let diameter: CGFloat = text.count > 2 ? 48 : 42
+    /// Puts down a number stamp – a filled circle in the current ink colour and line opacity, with
+    /// a Playpen Sans number (weight 600) – and lets it follow the mouse. Held still, it grows.
+    func beginStamp(at point: CGPoint, number stampNumber: Int) {
         // Same colour the next line would have (rainbow: where the last line ended).
         let fill = tapColor.copy(alpha: CGFloat(Preferences.inkOpacity) / 100) ?? tapColor
 
         let group = CALayer()
-        group.bounds = CGRect(x: 0, y: 0, width: diameter, height: diameter)
         group.position = point
         group.shadowColor = NSColor.black.cgColor
         group.shadowOpacity = 0.25
         group.shadowRadius = 2
         group.shadowOffset = CGSize(width: 1, height: -2)
+        group.setValue(fill, forKey: "stampFill")
+        group.setValue(Ink.stampDiameter, forKey: "stampDiameter")
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        drawStamp(group, number: stampNumber)
+        layer.addSublayer(group)
+        CATransaction.commit()
+        placing = group
+        stampList.append((group, stampNumber))
+        startGrowing(group)
+    }
+
+    /// (Re)draws a stamp's circle and number at its current diameter.
+    private func drawStamp(_ group: CALayer, number stampNumber: Int) {
+        let diameter = group.value(forKey: "stampDiameter") as? CGFloat ?? Ink.stampDiameter
+        let fill = (group.value(forKey: "stampFill") as! CGColor?) ?? tapColor
+        let wasRasterized = group.shouldRasterize
+        group.shouldRasterize = false
+        group.sublayers?.forEach { $0.removeFromSuperlayer() }
+        group.bounds = CGRect(x: 0, y: 0, width: diameter, height: diameter)
         let circle = CAShapeLayer()
         circle.path = CGPath(ellipseIn: group.bounds, transform: nil)
         circle.fillColor = fill
         group.addSublayer(circle)
 
         // The number as an outline, centred on its real ink bounds.
-        let size: CGFloat = text.count > 1 ? 23 : 28
-        let font = Ink.stampFont(size: size)
+        let text = "\(stampNumber)"
+        let font = Ink.stampFont(size: diameter * 28 / Ink.stampDiameter)
         let digits = CGMutablePath()
         var x: CGFloat = 0
         for unit in text.utf16 {
@@ -523,19 +603,53 @@ final class Ink {
         }
         let box = digits.boundingBoxOfPath
         // A lone "1" looks off-centre to the right (its flag sits on the left), so nudge it left.
-        let optical: CGFloat = text == "1" ? -2 : 0
+        let optical: CGFloat = text == "1" ? -2 * diameter / Ink.stampDiameter : 0
         var move = CGAffineTransform(translationX: diameter / 2 - box.midX + optical, y: diameter / 2 - box.midY)
         let number = CAShapeLayer()
         number.path = digits.copy(using: &move)
         number.fillColor = Ink.contrastColor(on: fill)
         group.addSublayer(number)
+        group.shouldRasterize = wasRasterized
+    }
 
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        layer.addSublayer(group)
-        CATransaction.commit()
-        placing = group
-        stampList.append((group, stampNumber))
+    /// While the button stays down on a new stamp, it grows up to `maxStampDiameter`; there it
+    /// pops and is put down on its own.
+    private func startGrowing(_ group: CALayer) {
+        growTimer?.invalidate()
+        let start = Date().addingTimeInterval(Ink.growDelay)
+        let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self, weak group] t in
+            guard let self = self, let group = group, self.placing === group, !self.placingExisting else {
+                t.invalidate()
+                return
+            }
+            let elapsed = Date().timeIntervalSince(start)
+            guard elapsed > 0 else {
+                return
+            }
+            let progress = min(1, CGFloat(elapsed / Ink.growTime))
+            // Linear, so the stamp visibly grows right from the start.
+            let eased = progress
+            let diameter = Ink.stampDiameter + (Ink.maxStampDiameter - Ink.stampDiameter) * eased
+            group.setValue(diameter, forKey: "stampDiameter")
+            if let number = self.stampList.first(where: { $0.layer === group })?.number {
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                self.drawStamp(group, number: number)
+                CATransaction.commit()
+            }
+            if progress >= 1 {
+                t.invalidate()
+                let pop = CAKeyframeAnimation(keyPath: "transform.scale")
+                pop.values = [1, 1.12, 1]
+                pop.keyTimes = [0, 0.4, 1]
+                pop.duration = 0.25
+                group.add(pop, forKey: "pop")
+                self.endStamp()
+                self.onStampPopped?()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        growTimer = timer
     }
 
     /// Black or white, whichever contrasts more with `background` (WCAG contrast ratio).
@@ -572,6 +686,8 @@ final class Ink {
     }
 
     func endStamp() {
+        growTimer?.invalidate()
+        growTimer = nil
         guard let group = placing else {
             return
         }

@@ -100,9 +100,13 @@ final class OverlayController {
             let stampFlags = Preferences.stampKey.cgFlags
             if !stampFlags.isEmpty, CGEventSource.flagsState(.hidSystemState).contains(stampFlags),
                let p = self.localMouse() {
+                // All nine numbers placed: a click with the stamp key does nothing.
+                guard self.armView.ink.pressStamp(at: p) else {
+                    self.ignoringPress = true
+                    return
+                }
                 self.armView.press()
                 self.armView.held = true
-                self.armView.ink.pressStamp(at: p)
                 self.tapSound.play()
                 self.noteButtonEvent()
                 return
@@ -172,6 +176,24 @@ final class OverlayController {
             CursorHider.reassert(urgent: true)
             self?.noteButtonEvent()
         }
+        inputTap.onLoupeAdjust = { [weak self] dx, dy in
+            // Mouse deltas grow downwards, like scroll deltas: up is negative in both.
+            self?.scrollLoupe(dx: dx, dy: dy, phase: .changed, fromMouse: true)
+        }
+        inputTap.onStampDigit = { [weak self] digit in
+            guard let self = self, let p = self.localMouse() else {
+                return
+            }
+            self.armView.ink.renumberStamp(at: p, to: digit)
+        }
+        armView.ink.onStampPopped = { [weak self] in
+            // Grown to full size and put down: the rest of this press does nothing.
+            self?.armView.held = false
+            self?.ignoringPress = true
+        }
+        inputTap.onLoupeScroll = { [weak self] dx, dy, phase in
+            self?.scrollLoupe(dx: dx, dy: dy, phase: phase)
+        }
         inputTap.onCaptureRightClick = { [weak self] in
             self?.toolbar.resetPosition()
             self?.noteButtonEvent()
@@ -225,14 +247,14 @@ final class OverlayController {
         }
     }
 
-    /// The laser dot and the color pointer share the "taps too" sound setting.
-    private var usesDotSound: Bool { armView.style == .laser || armView.style == .stroke }
+    /// The color pointer has its own "taps too" sound setting.
+    private var usesDotSound: Bool { armView.style == .stroke }
 
     var soundOn: Bool {
-        get { usesDotSound ? Preferences.laserSound : Preferences.handSound }
+        get { usesDotSound ? Preferences.colorPointerSound : Preferences.handSound }
         set {
             if usesDotSound {
-                Preferences.laserSound = newValue
+                Preferences.colorPointerSound = newValue
             } else {
                 Preferences.handSound = newValue
             }
@@ -331,6 +353,104 @@ final class OverlayController {
             revealUntil = Date().addingTimeInterval(3)
         }
         wake()
+    }
+
+    /// Scroll distance not yet turned into a whole point of loupe size.
+    private var loupeScrollRest: CGFloat = 0
+
+    /// Swiping up and down drags the zoom factor freely; letting go snaps it to the nearest half step.
+    private static let zoomStepDistance: CGFloat = 50
+    private var zoomDrag: CGFloat?
+    private var zoomDragBase: Double = 0
+    private var zoomSnapTimer: Timer?
+
+    /// Swipes on one axis resize the loupe (sideways by default), on the other they change the zoom
+    /// factor – but only once zoom is turned on in Settings and Screen Recording is allowed.
+    private var lastLoupeScroll = Date.distantPast
+
+    /// Adjusting size and zoom by moving the mouse with the adjust key held (the loupe stays put).
+    private var adjustingLoupe = false
+
+    private func setAdjustingLoupe(_ on: Bool) {
+        guard on != adjustingLoupe else {
+            return
+        }
+        adjustingLoupe = on
+        inputTap.loupeAdjusting = on
+        // The loupe stays put while the mouse adjusts, then glides back to the pointer.
+        magnifier.setAnchor(on ? NSEvent.mouseLocation : nil)
+        scrollLoupe(dx: 0, dy: 0, phase: on ? .began : .ended, fromMouse: true)
+    }
+
+    private func scrollLoupe(dx: CGFloat, dy: CGFloat, phase: ScrollPhase, fromMouse: Bool = false) {
+        let now = Date()
+        if phase == .ended {
+            finishZoomDrag()
+            return
+        }
+        // A new trackpad swipe, or a pause without scroll events (mouse wheels), starts over.
+        if phase == .began || now.timeIntervalSince(lastLoupeScroll) > 0.3 {
+            finishZoomDrag()
+            loupeScrollRest = 0
+        }
+        lastLoupeScroll = now
+        // Both axes work at once: one resizes, the other zooms. A little zoom picked up while
+        // resizing snaps back to its half step when the swipe ends.
+        // Right and up count as positive; Settings can reverse that and swap which axis resizes.
+        // Mouse moves follow the hand: right and up are always bigger and zoom in.
+        let sign: CGFloat = Preferences.reverseSwipe && !fromMouse ? -1 : 1
+        let horizontal = dx * sign
+        let vertical = -dy * sign
+        let sizeAmount = Preferences.resizeVertically ? vertical : horizontal
+        let zoomAmount = Preferences.resizeVertically ? horizontal : vertical
+        if sizeAmount != 0 {
+            resizeLoupe(by: sizeAmount)
+        }
+        // Zoom only once it is turned on and allowed.
+        guard zoomAmount != 0, Preferences.zoomOn, CGPreflightScreenCaptureAccess() else {
+            return
+        }
+        if zoomDrag == nil {
+            zoomDrag = 0
+            zoomDragBase = Preferences.zoomFactor
+        }
+        zoomDrag! += zoomAmount
+        magnifier.previewFactor = CGFloat(liveZoom())
+        if phase == .wheel {
+            // A mouse wheel never says when it's done: snap once it has been still for a moment.
+            zoomSnapTimer?.invalidate()
+            zoomSnapTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: false) { [weak self] _ in
+                self?.finishZoomDrag()
+            }
+        }
+    }
+
+    private func liveZoom() -> Double {
+        let raw = zoomDragBase + Double((zoomDrag ?? 0) / OverlayController.zoomStepDistance) * 0.5
+        return min(Preferences.zoomFactorRange.upperBound, max(Preferences.zoomFactorRange.lowerBound, raw))
+    }
+
+    /// Ends a zoom swipe: the factor snaps (animated) to the nearest half step.
+    private func finishZoomDrag() {
+        zoomSnapTimer?.invalidate()
+        zoomSnapTimer = nil
+        guard zoomDrag != nil else {
+            return
+        }
+        let snapped = (liveZoom() * 2).rounded() / 2
+        zoomDrag = nil
+        magnifier.previewFactor = nil
+        Preferences.zoomFactor = snapped
+    }
+
+    private func resizeLoupe(by delta: CGFloat) {
+        loupeScrollRest += delta * 2
+        let step = loupeScrollRest.rounded(.towardZero)
+        guard step != 0 else {
+            return
+        }
+        loupeScrollRest -= step
+        Preferences.loupeSize += Int(step)
     }
 
     func clearInk() {
@@ -435,6 +555,7 @@ final class OverlayController {
             return
         }
         isActive = false
+        setAdjustingLoupe(false)
 
         timer?.invalidate()
         timer = nil
@@ -710,8 +831,16 @@ final class OverlayController {
         let zoomFlags = Preferences.zoomKey.cgFlags
         let zoomHeld = !zoomFlags.isEmpty && !interactHeld
             && CGEventSource.flagsState(.hidSystemState).contains(zoomFlags)
+        let adjustFlags = Preferences.loupeAdjustKey.cgFlags
+        setAdjustingLoupe(zoomHeld && magnifier.isShowing && !adjustFlags.isEmpty
+            && CGEventSource.flagsState(.hidSystemState).contains(adjustFlags))
+        if !zoomHeld {
+            finishZoomDrag()
+        }
         magnifier.update(held: zoomHeld, mouse: mouse, screen: screen)
         armView.hiddenForZoom = magnifier.isShowing
+        inputTap.loupeShowing = magnifier.isShowing
+        inputTap.hoveringStamp = localMouse().map { armView.ink.stamp(at: $0) != nil } ?? false
         let overDock = DockArea.contains(OverlayController.cgPoint(mouse))
         let overToolbar = toolbar.revealed && toolbar.frame.contains(mouse)
         let catchMouse = overDock && !overToolbar && inputTap.isInstalled && !normalCursor && !interactHeld

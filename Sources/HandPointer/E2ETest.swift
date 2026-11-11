@@ -101,7 +101,7 @@ enum E2ETest {
         print("plain click added strokes:", overlay.inkStrokes - before)
 
         let primaryH = NSScreen.screens.first?.frame.height ?? 0
-        if let c = overlay.toolbarButtonCenter(.laser) {
+        if let c = overlay.toolbarButtonCenter(.stroke) {
             let p = CGPoint(x: c.x, y: primaryH - c.y)
             post(.mouseMoved, p)
             pump(0.2)
@@ -109,7 +109,7 @@ enum E2ETest {
             post(.leftMouseUp, p)
             pump(0.4)
         }
-        print("style after clicking the toolbar's laser button:", overlay.style.rawValue)
+        print("style after clicking the toolbar's color pointer button:", overlay.style.rawValue)
         print("clicks that leaked to the catcher window:", catcherView.clicks)
 
         let clickPoint = start

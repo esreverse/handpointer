@@ -4,8 +4,6 @@ final class ArmView: NSView {
     private let group = CALayer()
     private let rodLayer = CALayer()
     private let handLayer = CALayer()
-    private let dotLayer = CAShapeLayer()
-    private let dotCore = CAShapeLayer()
     /// The stroke pointer: a dot as big, as opaque and in the colour of the line you would draw.
     private let brushLayer = CAShapeLayer()
 
@@ -27,7 +25,6 @@ final class ArmView: NSView {
     private var pressAmount: CGFloat = 0
     private var gripX: CGFloat?
     private var lastPose: [CGFloat] = []
-    private var lastLaserPose: [CGFloat] = []
     private var gripTarget: CGFloat?
     private var displayImageHeight = 0
 
@@ -55,8 +52,7 @@ final class ArmView: NSView {
         didSet {
             CATransaction.begin()
             CATransaction.setDisableActions(true)
-            group.isHidden = pointerHidden || hiddenForZoom || style == .laser || style == .stroke
-            dotLayer.isHidden = pointerHidden || hiddenForZoom || style != .laser
+            group.isHidden = pointerHidden || hiddenForZoom || style == .stroke
             brushLayer.isHidden = pointerHidden || hiddenForZoom || style != .stroke
             CATransaction.commit()
         }
@@ -71,7 +67,6 @@ final class ArmView: NSView {
         root.addSublayer(ink.layer)
         root.addSublayer(group)
 
-        root.addSublayer(dotLayer)
         root.addSublayer(brushLayer)
         brushLayer.strokeColor = nil
 
@@ -85,13 +80,6 @@ final class ArmView: NSView {
             sub.shadowColor = NSColor.black.cgColor
             sub.shadowOpacity = 0.38
         }
-
-        dotLayer.fillColor = Ink.red
-        dotLayer.shadowColor = Ink.red
-        dotLayer.shadowOpacity = 1
-        dotLayer.shadowOffset = .zero
-        dotCore.fillColor = CGColor(srgbRed: 1, green: 0.86, blue: 0.82, alpha: 0.95)
-        dotLayer.addSublayer(dotCore)
 
         setStyle(PointerStyle.saved)
         NotificationCenter.default.addObserver(forName: Preferences.changed, object: nil, queue: .main) { [weak self] _ in
@@ -150,7 +138,7 @@ final class ArmView: NSView {
         style = newStyle
         asset = newStyle.assetName.flatMap(HandAsset.load)
         if newStyle.assetName != nil && asset == nil {
-            style = .laser
+            style = .stroke
         }
         updateInkColor()
         CATransaction.begin()
@@ -187,10 +175,6 @@ final class ArmView: NSView {
             pressAmount += (0 - pressAmount) * 0.18
         }
 
-        if style == .laser {
-            aimLaser(cursor: cursor)
-            return
-        }
         if style == .stroke {
             aimStroke(cursor: cursor)
             return
@@ -265,26 +249,6 @@ final class ArmView: NSView {
         brushLayer.fillColor = ink.tapColor
         brushLayer.opacity = Float(Preferences.inkOpacity) / 100
         brushLayer.position = cursor
-        CATransaction.commit()
-    }
-
-    private func aimLaser(cursor: CGPoint) {
-        let press = pressAmount
-        let r = max(4, bounds.height * 0.0038 * handLenFrac / 0.13) * (1 + 0.2 * press)
-        let laserPose = [r, cursor.x, cursor.y].map { ($0 * 100).rounded() }
-        guard laserPose != lastLaserPose else {
-            return
-        }
-        lastLaserPose = laserPose
-        let core = r * 0.45
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        let dot = CGPath(ellipseIn: CGRect(x: -r, y: -r, width: 2 * r, height: 2 * r), transform: nil)
-        dotLayer.path = dot
-        dotLayer.shadowPath = dot
-        dotCore.path = CGPath(ellipseIn: CGRect(x: -core, y: -core, width: 2 * core, height: 2 * core), transform: nil)
-        dotLayer.position = cursor
-        dotLayer.shadowRadius = r * (2.2 + 1.0 * press)
         CATransaction.commit()
     }
 

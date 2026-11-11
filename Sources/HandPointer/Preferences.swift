@@ -164,19 +164,18 @@ enum HoldKey: String, CaseIterable {
 }
 
 enum InkChoice: String, CaseIterable {
-    case match, rainbow, red, orange, yellow, green, blue, purple, white, black
+    case match, rainbow, red, yellow, green, blue, white, gray, black
 
     var title: String {
         switch self {
         case .rainbow: return "Rainbow"
         case .match: return "Match the pointer"
         case .red: return "Red"
-        case .orange: return "Orange"
         case .yellow: return "Yellow"
         case .green: return "Green"
         case .blue: return "Blue"
-        case .purple: return "Purple"
         case .white: return "White"
+        case .gray: return "Gray"
         case .black: return "Black"
         }
     }
@@ -185,12 +184,11 @@ enum InkChoice: String, CaseIterable {
         switch self {
         case .rainbow, .match: return nil
         case .red: return Ink.red
-        case .orange: return Ink.hex(0xFF8A00)
         case .yellow: return Ink.hex(0xFFCC00)
         case .green: return Ink.hex(0x30C25A)
         case .blue: return Ink.hex(0x0A84FF)
-        case .purple: return Ink.hex(0x8754F2)
         case .white: return Ink.hex(0xFFFFFF)
+        case .gray: return Ink.hex(0x8E8E93)
         case .black: return Ink.hex(0x1D1D21)
         }
     }
@@ -284,7 +282,8 @@ enum Preferences {
         set { set(newValue.rawValue, "tapSound") }
     }
 
-    static var laserSound: Bool {
+    /// Whether the color pointer taps too (stored under its old key, from when the laser dot shared it).
+    static var colorPointerSound: Bool {
         get { defaults.object(forKey: "sound.laser") as? Bool ?? false }
         set { set(newValue, "sound.laser") }
     }
@@ -342,6 +341,12 @@ enum Preferences {
         set { set(newValue, "tapRipples") }
     }
 
+    /// The icon in the menu bar. Hidden, opening the app again shows Settings.
+    static var showMenuBarIcon: Bool {
+        get { defaults.object(forKey: "showMenuBarIcon") as? Bool ?? true }
+        set { set(newValue, "showMenuBarIcon") }
+    }
+
     static var showToolbar: Bool {
         get { defaults.object(forKey: "showToolbar") as? Bool ?? true }
         set { set(newValue, "showToolbar") }
@@ -349,7 +354,7 @@ enum Preferences {
 
     static let rainbowStepChoices = Array(stride(from: 0, through: 90, by: 10))
 
-    /// How many degrees of hue each new rainbow line starts further along, until the drawing is cleared.
+    /// How many degrees of hue past the end of the last rainbow line the next one starts.
     static var rainbowStep: Int {
         get { min(90, max(0, defaults.object(forKey: "rainbowStep") as? Int ?? 0)) }
         set { set(min(90, max(0, newValue)), "rainbowStep") }
@@ -368,42 +373,46 @@ enum Preferences {
     }
 
     /// Hold this key while drawing for a straight arrow instead of a free line.
+    /// Hold while the flashlight or loupe is open and move the mouse: sideways and up/down work
+    /// like swiping (size and zoom), for a mouse that can only scroll one way.
+    static var loupeAdjustKey: HoldKey {
+        get { defaults.string(forKey: "loupeAdjustKey").flatMap(HoldKey.init(rawValue:)) ?? .control }
+        set { set(newValue.rawValue, "loupeAdjustKey") }
+    }
+
+    /// Arrows are switched off for now (no setting): the drawing code stays, the key is always Off.
     static var arrowKey: HoldKey {
-        get { defaults.string(forKey: "arrowKey").flatMap(HoldKey.init(rawValue:)) ?? .control }
+        get { .off }
         set { set(newValue.rawValue, "arrowKey") }
     }
 
+    /// The flashlight/loupe is always on; only its key can be changed (never to Off).
     static var zoomKey: HoldKey {
-        get { defaults.string(forKey: "zoomKey").flatMap(HoldKey.init(rawValue:)) ?? .off }
-        set { set(newValue.rawValue, "zoomKey") }
-    }
-
-    /// Asks for Screen Recording, which the zoom loupe needs, and opens System Settings at that list.
-    /// Called from Settings when zoom gets a key, so the prompt never shows up while the pointer is on.
-    /// The key zoom used before it was turned off, so turning it back on restores it.
-    static var lastZoomKey: HoldKey {
-        get { defaults.string(forKey: "lastZoomKey").flatMap(HoldKey.init(rawValue:)).flatMap { $0 == .off ? nil : $0 } ?? .shift }
-        set { set(newValue.rawValue, "lastZoomKey") }
-    }
-
-    /// Turns zoom on with the last key used, or off.
-    static var zoomEnabled: Bool {
-        get { zoomKey != .off }
+        get { defaults.string(forKey: "zoomKey").flatMap(HoldKey.init(rawValue:)).flatMap { $0 == .off ? nil : $0 } ?? .shift }
         set {
-            if newValue {
-                zoomKey = lastZoomKey
-                requestScreenRecordingIfNeeded()
-            } else {
-                if zoomKey != .off {
-                    lastZoomKey = zoomKey
-                }
-                zoomKey = .off
+            guard newValue != .off else {
+                return
             }
+            set(newValue.rawValue, "zoomKey")
         }
     }
 
+    /// At 1× the loupe is a flashlight: it only darkens around the pointer and needs no capture.
+    static var isFlashlight: Bool { !zoomOn || !CGPreflightScreenCaptureAccess() }
+
+    /// Zoom has to be turned on on its own (it needs Screen Recording); off, the loupe is a flashlight.
+    static var zoomOn: Bool {
+        get { defaults.bool(forKey: "zoomOn") }
+        set { set(newValue, "zoomOn") }
+    }
+
+    /// The factor the loupe uses right now: 1 (flashlight) unless zoom is on and allowed. With zoom
+    /// on, 1× keeps capturing (the loupe ring is gone), so going to 1.5× and back is seamless.
+    static var effectiveZoom: Double { isFlashlight ? 1 : zoomFactor }
+
+    /// Only zooming above 1× needs Screen Recording; the flashlight works without it.
     static func requestScreenRecordingIfNeeded() {
-        guard !CGPreflightScreenCaptureAccess() else {
+        guard zoomOn, !CGPreflightScreenCaptureAccess() else {
             return
         }
         CGRequestScreenCaptureAccess()
@@ -420,18 +429,34 @@ enum Preferences {
         set { set(min(800, max(200, newValue)), "loupeSize") }
     }
 
-    static let zoomFactorRange = 1.5...6.0
+    static let zoomFactorRange = 1.0...6.0
 
     static var zoomFactor: Double {
-        get { min(6, max(1.5, defaults.object(forKey: "zoomFactor") as? Double ?? 3)) }
-        set { set(min(6, max(1.5, newValue)), "zoomFactor") }
+        get { min(6, max(1, defaults.object(forKey: "zoomFactor") as? Double ?? 2)) }
+        set { set(min(6, max(1, newValue)), "zoomFactor") }
     }
 
-    /// Zoom in and out smoothly instead of jumping straight to the factor.
-    static var zoomAnimated: Bool {
-        get { defaults.object(forKey: "zoomAnimated") as? Bool ?? true }
-        set { set(newValue, "zoomAnimated") }
+
+    /// Resize the flashlight/loupe with up-and-down swipes (zoom then goes sideways).
+    static var resizeVertically: Bool {
+        get { defaults.bool(forKey: "resizeVertically") }
+        set { set(newValue, "resizeVertically") }
     }
+
+    /// Reverses both swipe directions (bigger and zoom in).
+    static var reverseSwipe: Bool {
+        get { defaults.bool(forKey: "reverseSwipe") }
+        set { set(newValue, "reverseSwipe") }
+    }
+
+    static let dimAlphaRange = 0.1...0.9
+
+    /// How dark the screen gets around the flashlight and the loupe, 10 % to 90 % black.
+    static var dimAlpha: Double {
+        get { min(0.9, max(0.1, defaults.object(forKey: "dimAlpha") as? Double ?? 0.3)) }
+        set { set(min(0.9, max(0.1, newValue)), "dimAlpha") }
+    }
+
 
     static let strokeSizeRange = 2...20
 
@@ -515,7 +540,7 @@ enum Preferences {
                     "shortcut.rainbowInk", "shortcut.matchInk", "shortcut.undo", "shortcut.redo", "pointerSize", "showShadow", "fadeSeconds",
                     "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "pinnedStyles", "pointerStyle",
                     "inkChoice", "showInkButton", "tapSound", "showToolbar", "inkOpacity", "rainbowStep", "rainbowSpeed", "strokeSize",
-                    "toolbarX", "toolbarY", "tapRipples", "soundOnDraw", "strokeSmoothing", "zoomKey", "lastZoomKey", "arrowKey", "stampKey", "loupeSize", "rightClickExits", "zoomFactor", "zoomAnimated"] {
+                    "toolbarX", "toolbarY", "tapRipples", "soundOnDraw", "strokeSmoothing", "zoomKey", "loupeAdjustKey", "arrowKey", "stampKey", "loupeSize", "rightClickExits", "zoomFactor", "zoomOn", "dimAlpha", "resizeVertically", "reverseSwipe", "zoomAnimated", "loupeDims", "showMenuBarIcon"] {
             defaults.removeObject(forKey: key)
         }
         NotificationCenter.default.post(name: changed, object: nil)
