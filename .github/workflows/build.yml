@@ -1,9 +1,10 @@
 name: Build
 
+# Releases and everyday builds happen locally (scripts/build-local.sh, scripts/release.sh).
+# This only checks pull requests from others, or runs by hand from the Actions tab.
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
