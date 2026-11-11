@@ -5,7 +5,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" /></a>
 </p>
 
-<img src="./.github/banner.png" alt="Quite Handy: for when you need a hand to talk about things on your screen" />
+<img src="./.github/banner-quitehandy.png" alt="Quite Handy: for when you need a hand to talk about things on your screen" />
 
 
 
