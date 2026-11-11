@@ -322,6 +322,10 @@ enum CustomHands {
         if let override = ProcessInfo.processInfo.environment["TH_HANDS_DIR"] {
             return URL(fileURLWithPath: override, isDirectory: true)
         }
+        // Screenshots with the first settings: no hands of your own.
+        if ProcessInfo.processInfo.environment["TH_DEFAULTS"] != nil {
+            return FileManager.default.temporaryDirectory.appendingPathComponent("QuiteHandySnapshotHands", isDirectory: true)
+        }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
         return base.appendingPathComponent("QuiteHandy/Hands", isDirectory: true)

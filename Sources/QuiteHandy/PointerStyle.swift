@@ -118,7 +118,7 @@ struct PointerStyle: Hashable {
 
     static var saved: PointerStyle {
         get {
-            let raw = UserDefaults.standard.string(forKey: defaultsKey)
+            let raw = Preferences.store.string(forKey: defaultsKey)
             // The laser dot is gone: the simple cursor is the closest thing to it.
             if raw == "dot" || raw == "laser" {
                 return .stroke
@@ -128,7 +128,7 @@ struct PointerStyle: Hashable {
             }
             return raw.flatMap(PointerStyle.init(rawValue:)) ?? .glove
         }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: defaultsKey) }
+        set { Preferences.store.set(newValue.rawValue, forKey: defaultsKey) }
     }
 }
 

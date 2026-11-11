@@ -12,7 +12,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general: return "General"
         case .pointers: return "Pointers"
         case .shortcuts: return "Shortcuts"
-        case .toolbar: return "Toolbar"
+        case .toolbar: return "Interface"
         case .drawing: return "Draw"
         case .zoom: return "Flashlight"
         case .sound: return "Sound"
@@ -1260,7 +1260,7 @@ private struct ToolbarPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
-            Card(title: nil) {
+            Card(title: "Toolbar") {
                 Row("Show toolbar", detail: "The bar at the bottom of the screen while Quite Handy is on") {
                     Toggle("", isOn: model.binding({ Preferences.showToolbar }, { Preferences.showToolbar = $0 }))
                         .toggleStyle(.switch).labelsHidden().focusable(false)
@@ -1274,6 +1274,18 @@ private struct ToolbarPage: View {
                     Toggle("", isOn: model.binding({ Preferences.showKnobs }, { Preferences.showKnobs = $0 }))
                         .toggleStyle(.switch).labelsHidden().focusable(false)
                         .disabled(!Preferences.showToolbar)
+                }
+                Row("Position", detail: "Puts the toolbar back at the bottom middle of the screen") {
+                    PillButton(title: "Reset Position") {
+                        Preferences.toolbarPosition = nil
+                        NotificationCenter.default.post(name: Preferences.toolbarPositionReset, object: nil)
+                    }
+                }
+            }
+            Card(title: "Whiteboard") {
+                Row("Show whiteboard", detail: "The sheets of paper in the bottom right corner") {
+                    Toggle("", isOn: model.binding({ Preferences.showWhiteboard }, { Preferences.showWhiteboard = $0 }))
+                        .toggleStyle(.switch).labelsHidden().focusable(false)
                 }
             }
         }

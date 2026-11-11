@@ -5,6 +5,13 @@ so write it for people using the app.
 
 
 
+## 1.6.5
+
+- Settings: The Toolbar page is now called Interface, with a group for the toolbar and one for the whiteboard
+- The whiteboard sheets in the bottom-right corner can be hidden; the Settings cog then moves down into the corner
+- Reset Position in Settings puts the toolbar back at the bottom middle of the screen; right-clicking its handle no longer does
+
+
 ## 1.6.1
 
 - The flashlight and the zoom loupe run much more smoothly: the darkening is no longer redrawn on every move

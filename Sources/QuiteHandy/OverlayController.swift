@@ -110,7 +110,7 @@ final class OverlayController {
             guard let self = self else {
                 return
             }
-            // The toolbar's drag handle: move the toolbar (right-click puts it back) instead of drawing.
+            // The toolbar's drag handle: move the toolbar instead of drawing.
             let mouse = NSEvent.mouseLocation
             // While zooming, clicks and drags never do anything.
             let zoomFlags = Preferences.zoomKey.cgFlags
@@ -300,10 +300,6 @@ final class OverlayController {
         inputTap.onLoupeScroll = { [weak self] dx, dy, phase in
             self?.scrollLoupe(dx: dx, dy: dy, phase: phase)
         }
-        inputTap.onCaptureRightClick = { [weak self] in
-            self?.toolbar.resetPosition()
-            self?.noteButtonEvent()
-        }
         inputTap.onRightClickExit = { [weak self] in
             self?.exit()
         }
@@ -341,11 +337,15 @@ final class OverlayController {
         toolbar.select(armView.style)
         tapSound.enabled = soundOn
         toolbar.setSoundOn(soundOn)
+        NotificationCenter.default.addObserver(forName: Preferences.toolbarPositionReset, object: nil, queue: .main) { [weak self] _ in
+            self?.toolbar.resetPosition()
+        }
         NotificationCenter.default.addObserver(forName: Preferences.changed, object: nil, queue: .main) { [weak self] _ in
             self?.syncSound()
             self?.inputTap.interactKey = Preferences.interactKey.cgFlags
             self?.inputTap.rightClickExits = Preferences.rightClickExits
             self?.armView.updateInkColor()
+            self?.whiteboard.setSheetsShown(Preferences.showWhiteboard)
             if let self = self, self.loadedTapSound != Preferences.tapSound {
                 self.loadedTapSound = Preferences.tapSound
                 self.tapSound.load(Preferences.tapSound)

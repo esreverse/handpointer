@@ -52,6 +52,10 @@ final class Whiteboard {
     /// otherwise a white cog on 10 % black.
     private var cogOnLight = false
     private var lastCogSample = Date.distantPast
+    /// Off in Settings: no sheets in the corner, the cog moves down into it.
+    private var sheetsShown = Preferences.showWhiteboard
+    /// Hidden while a screenshot is taken.
+    private var cornerHidden = false
     /// The board being pulled out of the corner (it only appears once the pointer has moved).
     private var pulling: (board: Board, start: CGPoint, started: Bool)?
     /// The board being carried by its grip (or caught while floating).
@@ -198,7 +202,7 @@ final class Whiteboard {
             cogHovered = overCog
             layoutCorner()
         }
-        let near = top == nil && !overCog && peekHitRect.insetBy(dx: -40, dy: -40).contains(mouse)
+        let near = sheetsShown && top == nil && !overCog && peekHitRect.insetBy(dx: -40, dy: -40).contains(mouse)
         if near != peekLifted {
             peekLifted = near
             CATransaction.begin()
@@ -217,7 +221,14 @@ final class Whiteboard {
         let corner = CGPoint(x: screenSize.width, y: 0)
         peek.position = corner
         peekBack.position = corner
-        cog.position = CGPoint(x: screenSize.width - Whiteboard.peekSize.width / 2, y: Whiteboard.peekSize.height + 24 + Whiteboard.buttonSize / 2)
+        peek.isHidden = cornerHidden || !sheetsShown
+        peekBack.isHidden = cornerHidden || !sheetsShown
+        cog.isHidden = cornerHidden
+        // Without the sheets the cog sits in the corner itself, as far from the bottom as from the right.
+        let cogInset = Whiteboard.peekSize.width / 2 - Whiteboard.buttonSize / 2
+        cog.position = sheetsShown
+            ? CGPoint(x: screenSize.width - Whiteboard.peekSize.width / 2, y: Whiteboard.peekSize.height + 24 + Whiteboard.buttonSize / 2)
+            : CGPoint(x: screenSize.width - Whiteboard.peekSize.width / 2, y: cogInset + Whiteboard.buttonSize / 2)
         cog.backgroundColor = NSColor(white: cogOnLight ? 1 : 0, alpha: cogHovered ? 0.2 : 0.1).cgColor
         cog.sublayers?.first?.contents = Whiteboard.lucideImage("cog", color: cogOnLight ? .black : .white)
         cog.sublayers?.first?.shadowOpacity = cogOnLight ? 0 : 0.25
@@ -243,12 +254,17 @@ final class Whiteboard {
 
     /// Hides the sheets and the cog in the corner (while a screenshot is taken).
     func setCornerHidden(_ hidden: Bool) {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        peek.isHidden = hidden
-        peekBack.isHidden = hidden
-        cog.isHidden = hidden
-        CATransaction.commit()
+        cornerHidden = hidden
+        layoutCorner()
+    }
+
+    /// Settings changed: shows or hides the sheets in the corner.
+    func setSheetsShown(_ shown: Bool) {
+        guard shown != sheetsShown else {
+            return
+        }
+        sheetsShown = shown
+        layoutCorner()
     }
 
     private var screenToast: CALayer?
@@ -442,7 +458,7 @@ final class Whiteboard {
         if cog.frame.contains(p) {
             return (.settings, nil)
         }
-        return peekHitRect.contains(p) ? (.peek, nil) : (.none, nil)
+        return sheetsShown && peekHitRect.contains(p) ? (.peek, nil) : (.none, nil)
     }
 
     fileprivate func changed(_ b: Board, from: State, to: State) {
@@ -640,6 +656,7 @@ final class Whiteboard {
         let size = CGSize(width: 1440, height: 900)
         let wb = Whiteboard()
         wb.screenSize = size
+        wb.sheetsShown = !CommandLine.arguments.contains("--no-sheets")
         wb.layoutCorner()
         if CommandLine.arguments.contains("--peek") {
         } else if pulling {

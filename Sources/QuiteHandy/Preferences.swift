@@ -267,7 +267,18 @@ enum InkChoice: String, CaseIterable {
 
 enum Preferences {
     static let changed = Notification.Name("QuiteHandyPreferencesChanged")
-    private static let defaults = UserDefaults.standard
+    /// Where settings live. TH_DEFAULTS=1 (for --settings-test screenshots) uses an empty
+    /// throwaway store instead, so pages show the settings as they are at first.
+    static let store: UserDefaults = {
+        guard ProcessInfo.processInfo.environment["TH_DEFAULTS"] != nil else {
+            return .standard
+        }
+        let name = "com.esreverse.quitehandy.snapshot"
+        let d = UserDefaults(suiteName: name) ?? .standard
+        d.removePersistentDomain(forName: name)
+        return d
+    }()
+    private static let defaults = store
 
     static var toggleShortcut: Shortcut {
         get { loadShortcut("shortcut.toggle") ?? .toggleDefault }
@@ -593,6 +604,12 @@ enum Preferences {
         set { set(newValue, "showKnobs") }
     }
 
+    /// The sheets of paper in the bottom right corner that open a whiteboard.
+    static var showWhiteboard: Bool {
+        get { defaults.object(forKey: "showWhiteboard") as? Bool ?? true }
+        set { set(newValue, "showWhiteboard") }
+    }
+
     static var showInkButton: Bool {
         get { defaults.object(forKey: "showInkButton") as? Bool ?? true }
         set { set(newValue, "showInkButton") }
@@ -652,7 +669,7 @@ enum Preferences {
                     "shortcut.nextPointer", "shortcut.previousPointer", "shortcut.nextInk", "shortcut.previousInk", "shortcut.copyScreen", "shortcut.saveScreen", "shortcut.sound",
                     "shortcut.rainbowInk", "shortcut.matchInk", "shortcut.undo", "shortcut.redo", "pointerSize", "showShadow", "fadeSeconds",
                     "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "pinnedStyles", "pointerStyle",
-                    "inkChoice", "showInkButton", "showKnobs", "tapSound", "showToolbar", "inkOpacity", "rainbowStep", "rainbowSpeed", "strokeSize",
+                    "inkChoice", "showInkButton", "showKnobs", "showWhiteboard", "tapSound", "showToolbar", "inkOpacity", "rainbowStep", "rainbowSpeed", "strokeSize",
                     "toolbarX", "toolbarY", "tapRipples", "soundOnDraw", "strokeSmoothing", "zoomKey", "loupeAdjustKey", "arrowKey", "stampKey", "loupeSize", "rightClickExits", "zoomFactor", "zoomOn", "dimAlpha", "resizeVertically", "reverseSwipe", "reverseMouseScroll", "zoomAnimated", "loupeDims", "showMenuBarIcon"] {
             defaults.removeObject(forKey: key)
         }
@@ -667,6 +684,8 @@ enum Preferences {
     }
 
     static let liveChanged = Notification.Name("QuiteHandyPreferencesLiveChanged")
+    /// Settings asked to put the toolbar back in its first place.
+    static let toolbarPositionReset = Notification.Name("QuiteHandyToolbarPositionReset")
     private static let liveKeys: Set<String> = ["loupeSize", "zoomFactor"]
 
     private static func loadShortcut(_ key: String) -> Shortcut? {

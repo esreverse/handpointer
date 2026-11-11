@@ -9,7 +9,6 @@ final class InputTap {
     var onPassThroughPress: ((CGPoint) -> Void)?
     var onRightClickExit: (() -> Void)?
     /// Right-click on a capture rect (the toolbar's drag handle).
-    var onCaptureRightClick: (() -> Void)?
     /// Scrolling while the zoom loupe is open, with the vertical scroll distance in points.
     /// Horizontal and vertical scroll distance while the loupe or flashlight is open.
     /// `began` is set on the first event of a trackpad swipe; momentum (coasting after lifting) is left out.
@@ -342,10 +341,9 @@ final class InputTap {
             return Unmanaged.passUnretained(event)
         }
 
-        // Right-click on the toolbar (but not its drag handle) ends the session like elsewhere.
+        // Right-click on the toolbar (its drag handle too) ends the session like elsewhere.
         if type == .rightMouseDown, rightClickExits,
-           rightExitRects.contains(where: { $0.contains(event.location) }),
-           !captureRects.contains(where: { $0.contains(event.location) }) {
+           rightExitRects.contains(where: { $0.contains(event.location) }) {
             swallowRightUp = true
             DispatchQueue.main.async { [weak self] in self?.onRightClickExit?() }
             return nil
@@ -375,9 +373,8 @@ final class InputTap {
 
         switch type {
         case .rightMouseDown where captureRects.contains { $0.contains(event.location) }:
-            // Right-click on the drag handle only resets the toolbar; it never ends the session.
+            // Right-click on the drag handle does nothing (when it doesn't turn the pointer off).
             swallowRightUp = true
-            DispatchQueue.main.async { [weak self] in self?.onCaptureRightClick?() }
             return nil
         case .rightMouseUp where swallowRightUp:
             swallowRightUp = false

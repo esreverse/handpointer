@@ -148,7 +148,8 @@ Single keys only work while the pointer is on. All shortcuts can be changed in *
 |---|---|
 | **General** | Open at login, menu bar icon, automatic updates, check for updates, permission status |
 | **Shortcuts** | Every shortcut, right-click to turn off, the key to click for real |
-| **Draw** | Pointer and stroke size, opacity, how long lines stay, ink colour, rainbow speed and shift, tap circle, toolbar |
+| **Interface** | Toolbar: show it, colour palette, opacity and size knobs, reset its position; Whiteboard: show the sheets in the corner |
+| **Draw** | Pointer and stroke size, opacity, how long lines stay, ink colour, rainbow speed and shift, tap circle |
 | **Flashlight** | Hold key, size, darkness (10–90 %), which swipe resizes, reverse swipe direction; Zoom on/off, zoom factor |
 | **Pointers** | Which pointers are in the toolbar and in what order, and your own hands |
 | **Sound** | Tap sound, play on tap only or on tap and draw |

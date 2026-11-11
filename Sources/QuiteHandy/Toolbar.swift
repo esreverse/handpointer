@@ -157,10 +157,9 @@ final class Toolbar {
         }
     }
 
-    /// Grip on the left end: drag to move the toolbar, right-click to put it back.
+    /// Grip on the left end: drag to move the toolbar (Settings puts it back).
     private final class Handle: NSView {
         var onMoved: (() -> Void)?
-        var onReset: (() -> Void)?
         private var start: CGPoint?
         private var startOrigin: CGPoint?
 
@@ -196,10 +195,6 @@ final class Toolbar {
             }
             start = nil
             startOrigin = nil
-        }
-
-        override func rightMouseDown(with event: NSEvent) {
-            onReset?()
         }
     }
 
@@ -292,12 +287,11 @@ final class Toolbar {
         ])
 
         let handle = Handle()
-        tips[handle] = "Drag to move, right-click to reset"
+        tips[handle] = "Drag to move"
         handle.translatesAutoresizingMaskIntoConstraints = false
         handle.widthAnchor.constraint(equalToConstant: 28).isActive = true
         handle.heightAnchor.constraint(equalToConstant: 40).isActive = true
         handle.onMoved = { [weak self] in self?.savePosition() }
-        handle.onReset = { [weak self] in self?.resetPosition() }
         stack.insertArrangedSubview(handle, at: 0)
         stack.setCustomSpacing(12, after: handle)
         handleView = handle
