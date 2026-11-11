@@ -109,7 +109,7 @@ enum E2ETest {
             post(.leftMouseUp, p)
             pump(0.4)
         }
-        print("style after clicking the toolbar's color pointer button:", overlay.style.rawValue)
+        print("style after clicking the toolbar's simple cursor button:", overlay.style.rawValue)
         print("clicks that leaked to the catcher window:", catcherView.clicks)
 
         let clickPoint = start

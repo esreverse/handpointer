@@ -27,14 +27,14 @@ Nothing underneath gets clicked, and one key puts your normal cursor back.
   and let lines fade on their own or keep them until you clear them.
 - **Rainbow ink:** Lines run through every colour as you draw, with adjustable speed. Each new line can
   start further around the colour wheel, or carry on exactly where the last one ended.
-- **Number stamps:** Hold ⌥ and click to place numbered circles from 1 to 9, great for "which one do you like
+- **Number stamps:** Hold ⇧ and click to place numbered circles from 1 to 9, great for "which one do you like
   better?" Keep holding and the stamp grows until it pops into place. Hover a stamp and press 1 to 9 to change its
   number.
-- **Flashlight and zoom loupe:** Hold ⇧ and the screen gets darker around the pointer, a flashlight that needs no
+- **Flashlight and zoom loupe:** Hold ⌃ and the screen gets darker around the pointer, a flashlight that needs no
   extra permission. Turn on Zoom and it becomes a loupe that magnifies the screen, with a Liquid
   Glass ring. Swipe sideways to make it bigger or smaller, up and down to zoom in half steps (it snaps, with the factor
   rolling in a small pill). Both directions can be swapped or reversed in Settings.
-- **36 pointers and your own:** Toy hands, a color pointer that shows your exact stroke, or a
+- **36 pointers and your own:** Toy hands, a simple cursor that shows your exact stroke, or a
   hand you make yourself from any image.
 - **A toolbar that stays out of the way:** Pointers and colours in one bar. Drag it anywhere, hide
   it with a key, and it disappears while you use your Mac for real.
@@ -80,7 +80,7 @@ Nothing underneath gets clicked, and one key puts your normal cursor back.
         <source media="(prefers-color-scheme: dark)" srcset="./.github/screenshots/settings-zoom-dark.png" />
         <img src="./.github/screenshots/settings-zoom-light.png" alt="Zoom settings: hold key, loupe size and zoom factor" />
       </picture>
-      <p align="left"><b>Flashlight/Loupe:</b> Size, darkness, swipes, zoom factor</p>
+      <p align="left"><b>Flashlight:</b> Size, darkness, swipes, zoom factor</p>
     </td>
   </tr>
   <tr>
@@ -110,7 +110,7 @@ Nothing underneath gets clicked, and one key puts your normal cursor back.
 3. Open Quite Handy. The first time, macOS says it can't check the developer, because the app is not
    notarized yet. Go to **System Settings → Privacy & Security** and click **Open Anyway**.
 4. Allow **Accessibility** when asked.
-5. Optional: to zoom, turn on Zoom in **Settings → Flashlight/Loupe** and allow **Screen Recording**.
+5. Optional: to zoom, turn on Zoom in **Settings → Flashlight** and allow **Screen Recording**.
 
 Quite Handy lives in the menu bar. Click its icon or press **⌃⇥** to turn the pointer on.
 
@@ -124,17 +124,17 @@ Quite Handy lives in the menu bar. Click its icon or press **⌃⇥** to turn th
 | Right-click the menu bar icon | Menu and Settings |
 | Click | Tap (nothing underneath gets clicked) |
 | Hold and drag | Draw on the screen |
-| Hold **⌥** and click | Stamp numbered circles 1 to 9 (keep holding to make one bigger) |
+| Hold **⇧** and click | Stamp numbered circles 1 to 9 (keep holding to make one bigger) |
 | **1** to **9** over a stamp | Change its number |
 | Hold **⌘** | Click and scroll your Mac for real |
-| Hold **⇧** | Flashlight, or zoom loupe once Zoom is on; swipe sideways to resize, up and down to zoom |
-| Hold **⇧** and **⌃**, move the mouse | Resize and zoom with a mouse: sideways for size, up and down for zoom |
-| **Q** | Clear the drawing |
-| **U** / **I** | Undo / redo the last line or stamp (hold to keep going) |
-| **A** / **R** | Automatic colour / rainbow colour |
+| Hold **⇥ Tab** | Flashlight, or zoom loupe once Zoom is on; swipe sideways to resize, up and down to zoom |
+| Hold **⇥ Tab** and **⌥**, move the mouse | Resize and zoom with a mouse: sideways for size, up and down for zoom |
+| **R** | Clear the drawing |
+| **⌘Z** / **⇧⌘Z** | Undo / redo the last line or stamp (hold to keep going) |
+| **A** / **⇧A** | Automatic colour / rainbow colour |
 | **X** / **Y** | Next / previous pointer (hold to step through) |
-| **H** | Show or hide the toolbar |
-| **M** | Sound on or off |
+| **T** | Show or hide the toolbar |
+| **S** | Sound on or off |
 | **⌘,** | Settings |
 | **Esc** or right-click | Clear everything and turn the pointer off |
 
@@ -148,8 +148,8 @@ Single keys only work while the pointer is on. All shortcuts can be changed in *
 |---|---|
 | **General** | Open at login, menu bar icon, automatic updates, check for updates, permission status |
 | **Shortcuts** | Every shortcut, right-click to turn off, the key to click for real |
-| **Draw** | Pointer and stroke size, opacity, shadow, how long lines stay, ink colour, rainbow speed and shift, tap circle, toolbar |
-| **Flashlight/Loupe** | Hold key, size, darkness (10–90 %), which swipe resizes, reverse swipe direction; Zoom on/off, zoom factor |
+| **Draw** | Pointer and stroke size, opacity, how long lines stay, ink colour, rainbow speed and shift, tap circle, toolbar |
+| **Flashlight** | Hold key, size, darkness (10–90 %), which swipe resizes, reverse swipe direction; Zoom on/off, zoom factor |
 | **Pointers** | Which pointers are in the toolbar and in what order, and your own hands |
 | **Sound** | Tap sound, play on tap only or on tap and draw |
 
@@ -203,7 +203,8 @@ Builds the DMG and the update feed for a release into `dist/release/`. The relea
 
 Quite Handy is developed by [Eric Singhartinger](https://github.com/esreverse). It is based on
 [TinyHand](https://github.com/nilbuild/tinyhand) by Kamran Ahmed, used under the MIT License. Number stamps use
-[Playpen Sans](https://github.com/TypeTogether/Playpen-Sans) by TypeTogether, under the SIL Open Font License.
+[Fredoka](https://github.com/hafontia/Fredoka-One), under the SIL Open Font License. The whiteboard's icons are
+from [Lucide](https://lucide.dev), under the ISC License.
 
 
 

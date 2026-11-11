@@ -44,14 +44,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         overlay.onNeedsPermission = { [weak self] in
             self?.welcome.show()
         }
+        overlay.onOpenSettings = { [weak self] in self?.openSettings() }
         welcome.onTryIt = { [weak self] in
             self?.overlay.activate()
         }
         if !UserDefaults.standard.bool(forKey: WelcomeWindow.shownKey) || !AXIsProcessTrusted() {
             welcome.show()
-        } else if !Preferences.showMenuBarIcon {
-            // Without the menu bar icon there is nothing to click, so starting the app shows Settings.
-            openSettings()
         }
     }
 
@@ -127,6 +125,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settings.applyPreviousPointerShortcut = { [weak self] s in
             self?.apply(s, to: .previousPointer) ?? false
         }
+        settings.applyCopyScreenShortcut = { [weak self] s in
+            self?.apply(s, to: .copyScreen) ?? false
+        }
+        settings.applySaveScreenShortcut = { [weak self] s in
+            self?.apply(s, to: .saveScreen) ?? false
+        }
+        settings.applyNextInkShortcut = { [weak self] s in
+            self?.apply(s, to: .nextInk) ?? false
+        }
+        settings.applyPreviousInkShortcut = { [weak self] s in
+            self?.apply(s, to: .previousInk) ?? false
+        }
         settings.applySoundShortcut = { [weak self] s in
             self?.apply(s, to: .sound) ?? false
         }
@@ -189,7 +199,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private enum ShortcutAction: CaseIterable {
-        case toggle, clear, undo, redo, toolbar, rainbowInk, matchInk, nextPointer, previousPointer, sound, settings
+        case toggle, clear, undo, redo, toolbar, rainbowInk, matchInk, nextInk, previousInk, nextPointer, previousPointer, sound, copyScreen, saveScreen, settings
 
         /// Everything but the on/off shortcut is only grabbed while the pointer is on, so keys like
         /// ⌘Z or ⌘, keep working in other apps the rest of the time.
@@ -205,6 +215,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 case .toolbar: return Preferences.toolbarShortcut
                 case .rainbowInk: return Preferences.rainbowInkShortcut
                 case .matchInk: return Preferences.matchInkShortcut
+                case .copyScreen: return Preferences.copyScreenShortcut
+                case .saveScreen: return Preferences.saveScreenShortcut
+                case .nextInk: return Preferences.nextInkShortcut
+                case .previousInk: return Preferences.previousInkShortcut
                 case .nextPointer: return Preferences.nextPointerShortcut
                 case .previousPointer: return Preferences.previousPointerShortcut
                 case .sound: return Preferences.soundShortcut
@@ -220,6 +234,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 case .toolbar: Preferences.toolbarShortcut = newValue
                 case .rainbowInk: Preferences.rainbowInkShortcut = newValue
                 case .matchInk: Preferences.matchInkShortcut = newValue
+                case .copyScreen: Preferences.copyScreenShortcut = newValue
+                case .saveScreen: Preferences.saveScreenShortcut = newValue
+                case .nextInk: Preferences.nextInkShortcut = newValue
+                case .previousInk: Preferences.previousInkShortcut = newValue
                 case .nextPointer: Preferences.nextPointerShortcut = newValue
                 case .previousPointer: Preferences.previousPointerShortcut = newValue
                 case .sound: Preferences.soundShortcut = newValue
@@ -271,8 +289,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             overlay.redoInk()
             startRepeat(action) { [weak self] in self?.overlay.redoInk() }
         case .toolbar: overlay.toggleToolbar()
-        case .rainbowInk: Preferences.inkChoice = .rainbow
-        case .matchInk: Preferences.inkChoice = .match
+        case .rainbowInk:
+            Preferences.inkChoice = .rainbow
+            overlay.flashInkColor()
+        case .matchInk:
+            Preferences.inkChoice = .match
+            overlay.flashInkColor()
+        case .copyScreen: overlay.captureScreen(save: false)
+        case .saveScreen: overlay.captureScreen(save: true)
+        case .nextInk:
+            cycleInk(by: 1)
+            startRepeat(action) { [weak self] in self?.cycleInk(by: 1) }
+        case .previousInk:
+            cycleInk(by: -1)
+            startRepeat(action) { [weak self] in self?.cycleInk(by: -1) }
         case .nextPointer:
             overlay.cyclePointer(by: 1)
             startRepeat(action) { [weak self] in self?.overlay.cyclePointer(by: 1) }
@@ -282,6 +312,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .sound: overlay.soundOn.toggle()
         case .settings: openSettings()
         }
+    }
+
+    /// Steps through the ink colours in toolbar order, wrapping around.
+    private func cycleInk(by step: Int) {
+        let all = InkChoice.allCases
+        let index = all.firstIndex(of: Preferences.inkChoice) ?? 0
+        // Stops at the first and the last ink, like the hands do.
+        let next = min(max(index + step, 0), all.count - 1)
+        guard next != index else {
+            return
+        }
+        Preferences.inkChoice = all[next]
+        overlay.flashInkColor()
     }
 
     @discardableResult

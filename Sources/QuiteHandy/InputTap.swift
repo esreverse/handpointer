@@ -33,6 +33,17 @@ final class InputTap {
         set { lock.withLock { _hoveringStamp = newValue } }
     }
     var onStampDigit: ((Int) -> Void)?
+    /// A key went down while the flashlight or loupe was open (on the main queue).
+    var onKeyWhileLoupe: (() -> Void)?
+
+    private var _escExits = false
+    /// While true, Esc (without modifiers) ends the session. Handled here rather than as a system
+    /// hot key, which fails when another app (a screenshot tool, say) has already claimed Esc.
+    var escExits: Bool {
+        get { lock.withLock { _escExits } }
+        set { lock.withLock { _escExits = newValue } }
+    }
+    var onEsc: (() -> Void)?
 
     private var _loupeAdjusting = false
     /// While the adjust key is held with the loupe open, mouse moves change size and zoom.
@@ -88,6 +99,10 @@ final class InputTap {
     private var passingThrough = false
     private(set) var maxWaitMs: Double = 0
     private var tap: CFMachPort?
+    /// A second, earlier tap (at the hardware level) only for scrolling while the flashlight or
+    /// loupe is open: macOS's own features on modifier + scroll (Accessibility zoom on ⌃ + scroll)
+    /// act before the normal tap would see the scroll, so it has to be caught earlier.
+    private var scrollTap: CFMachPort?
     private var thread: Thread?
 
     private(set) var isInstalled = false
@@ -110,6 +125,7 @@ final class InputTap {
             (1 << CGEventType.otherMouseDragged.rawValue) |
             (1 << CGEventType.scrollWheel.rawValue) |
             (1 << CGEventType.keyDown.rawValue) |
+            (1 << CGEventType.keyUp.rawValue) |
             (1 << CGEventType.mouseMoved.rawValue)
 
         let refcon = Unmanaged.passUnretained(self).toOpaque()
@@ -131,10 +147,32 @@ final class InputTap {
         }
         CGEvent.tapEnable(tap: tap, enable: false)
 
+        let scrollTap = CGEvent.tapCreate(
+            tap: .cghidEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: 1 << CGEventType.scrollWheel.rawValue,
+            callback: { _, type, event, refcon in
+                guard let refcon = refcon else {
+                    return Unmanaged.passUnretained(event)
+                }
+                let me = Unmanaged<InputTap>.fromOpaque(refcon).takeUnretainedValue()
+                return me.handleEarlyScroll(type: type, event: event)
+            },
+            userInfo: refcon
+        )
+        if let scrollTap = scrollTap {
+            CGEvent.tapEnable(tap: scrollTap, enable: false)
+        }
+
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        let scrollSource = scrollTap.map { CFMachPortCreateRunLoopSource(kCFAllocatorDefault, $0, 0) }
         let ready = DispatchSemaphore(value: 0)
         let thread = Thread {
             CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
+            if let scrollSource = scrollSource {
+                CFRunLoopAddSource(CFRunLoopGetCurrent(), scrollSource, .commonModes)
+            }
             ready.signal()
             CFRunLoopRun()
         }
@@ -144,6 +182,7 @@ final class InputTap {
         ready.wait()
 
         self.tap = tap
+        self.scrollTap = scrollTap
         self.thread = thread
         isInstalled = true
         return true
@@ -154,10 +193,34 @@ final class InputTap {
             _active = value
             _interactPress = false
         }
+        HeldKeys.reset()
+        if let scrollTap = scrollTap {
+            CGEvent.tapEnable(tap: scrollTap, enable: value)
+        }
         guard let tap = tap else {
             return
         }
         CGEvent.tapEnable(tap: tap, enable: value)
+    }
+
+    /// Scrolling while the flashlight or loupe is open goes to it and nowhere else, caught before
+    /// macOS can use it for its own zoom. Everything else passes on to the normal tap.
+    private func handleEarlyScroll(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if active, let t = scrollTap {
+                CGEvent.tapEnable(tap: t, enable: true)
+            }
+            return Unmanaged.passUnretained(event)
+        }
+        guard type == .scrollWheel, active, loupeShowing else {
+            return Unmanaged.passUnretained(event)
+        }
+        let (dx, dy) = InputTap.fingerDeltas(event)
+        let phase = ScrollPhase(raw: event.getIntegerValueField(.scrollWheelEventScrollPhase))
+        if event.getIntegerValueField(.scrollWheelEventMomentumPhase) == 0 {
+            DispatchQueue.main.async { [weak self] in self?.onLoupeScroll?(dx, dy, phase) }
+        }
+        return nil
     }
 
     func simulate(_ type: CGEventType) {
@@ -195,6 +258,27 @@ final class InputTap {
             return Unmanaged.passUnretained(event)
         }
 
+        // Space and Tab set as hold keys: remember whether they are down and keep them from the
+        // app underneath. With ⌘, ⌃ or ⌥, Tab stays Tab (⌃⇥ turns the pointer off, ⌘⇥ switches apps).
+        if type == .keyDown || type == .keyUp {
+            let code = event.getIntegerValueField(.keyboardEventKeycode)
+            if let flag = HeldKeys.flag(forKeyCode: code) {
+                let down = type == .keyDown
+                let chord = !event.flags.intersection([.maskCommand, .maskControl, .maskAlternate]).isEmpty
+                if down && chord && !HeldKeys.isHeld(flag) {
+                    return Unmanaged.passUnretained(event)
+                }
+                if !down && !HeldKeys.isHeld(flag) {
+                    return Unmanaged.passUnretained(event)
+                }
+                HeldKeys.set(flag, down: down)
+                return nil
+            }
+            if type == .keyUp {
+                return Unmanaged.passUnretained(event)
+            }
+        }
+
         if type == .mouseMoved {
             if loupeAdjusting {
                 let dx = CGFloat(event.getDoubleValueField(.mouseEventDeltaX))
@@ -203,7 +287,17 @@ final class InputTap {
             }
             return Unmanaged.passUnretained(event)
         }
+        if type == .keyDown, event.getIntegerValueField(.keyboardEventKeycode) == 53, escExits,
+           event.flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).isEmpty {
+            DispatchQueue.main.async { [weak self] in self?.onEsc?() }
+            return nil
+        }
         if type == .keyDown {
+            // Any other key while the flashlight or loupe is open turns it off at once (it might
+            // be a screenshot shortcut, and the screenshot must not show the darkening).
+            if loupeShowing {
+                DispatchQueue.main.async { [weak self] in self?.onKeyWhileLoupe?() }
+            }
             let modifiers: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate]
             if hoveringStamp, event.flags.intersection(modifiers).isEmpty,
                let digit = InputTap.digit(for: event.getIntegerValueField(.keyboardEventKeycode)) {
@@ -217,13 +311,12 @@ final class InputTap {
         // Scrolling only reaches your Mac while the interact key is held; with the loupe open
         // it changes the loupe's size, otherwise it does nothing.
         if type == .scrollWheel {
-            if !key.isEmpty && (event.flags.contains(key) || CGEventSource.flagsState(.hidSystemState).contains(key)) {
+            if !key.isEmpty && (event.flags.contains(key) || HeldKeys.current.contains(key)) {
                 event.flags.remove(key)
                 return Unmanaged.passUnretained(event)
             }
             if loupeShowing {
-                let dy = CGFloat(event.getDoubleValueField(.scrollWheelEventPointDeltaAxis1))
-                let dx = CGFloat(event.getDoubleValueField(.scrollWheelEventPointDeltaAxis2))
+                let (dx, dy) = InputTap.fingerDeltas(event)
                 let phase = ScrollPhase(raw: event.getIntegerValueField(.scrollWheelEventScrollPhase))
                 if event.getIntegerValueField(.scrollWheelEventMomentumPhase) == 0 {
                     DispatchQueue.main.async { [weak self] in self?.onLoupeScroll?(dx, dy, phase) }
@@ -233,7 +326,7 @@ final class InputTap {
         }
         switch type {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
-            if !key.isEmpty && (event.flags.contains(key) || CGEventSource.flagsState(.hidSystemState).contains(key)) {
+            if !key.isEmpty && (event.flags.contains(key) || HeldKeys.current.contains(key)) {
                 lock.withLock { _interactPress = true }
                 DispatchQueue.main.async { [weak self] in self?.onInteractDown?() }
             }
@@ -313,6 +406,13 @@ final class InputTap {
 }
 
 extension InputTap {
+    /// Scroll distances as macOS delivers them (after the system's and any mouse software's
+    /// own direction settings).
+    static func fingerDeltas(_ event: CGEvent) -> (dx: CGFloat, dy: CGFloat) {
+        (CGFloat(event.getDoubleValueField(.scrollWheelEventPointDeltaAxis2)),
+         CGFloat(event.getDoubleValueField(.scrollWheelEventPointDeltaAxis1)))
+    }
+
     /// 1 to 9 for the digit keys of the main row and the keypad.
     static func digit(for keyCode: Int64) -> Int? {
         let row: [Int64: Int] = [18: 1, 19: 2, 20: 3, 21: 4, 23: 5, 22: 6, 26: 7, 28: 8, 25: 9]

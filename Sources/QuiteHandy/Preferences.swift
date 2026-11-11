@@ -9,9 +9,14 @@ struct Shortcut: Equatable {
 
     /// A single-letter shortcut for the key that types `letter` on the current keyboard layout
     /// (so "Y" is the Y key on a German keyboard too, where Y and Z swap places).
-    static func letter(_ letter: Character, fallback: Int) -> Shortcut {
+    static func letter(_ letter: Character, fallback: Int, modifiers: UInt32 = 0) -> Shortcut {
         let code = keyCode(typing: letter) ?? UInt32(fallback)
-        return Shortcut(keyCode: code, modifiers: 0, display: String(letter).uppercased())
+        var symbols = ""
+        if modifiers & UInt32(controlKey) != 0 { symbols += "⌃" }
+        if modifiers & UInt32(optionKey) != 0 { symbols += "⌥" }
+        if modifiers & UInt32(shiftKey) != 0 { symbols += "⇧" }
+        if modifiers & UInt32(cmdKey) != 0 { symbols += "⌘" }
+        return Shortcut(keyCode: code, modifiers: modifiers, display: symbols + String(letter).uppercased())
     }
 
     private static func keyCode(typing letter: Character) -> UInt32? {
@@ -71,25 +76,31 @@ struct Shortcut: Equatable {
     }
 
     static let toggleDefault = Shortcut(keyCode: UInt32(kVK_Tab), modifiers: UInt32(controlKey), display: "⌃⇥")
-    static let clearDefault = Shortcut.letter("Q", fallback: kVK_ANSI_Q)
-    static let toolbarDefault = Shortcut(keyCode: UInt32(kVK_ANSI_H), modifiers: 0, display: "H")
-    static let rainbowInkDefault = Shortcut.letter("R", fallback: kVK_ANSI_R)
+    static let clearDefault = Shortcut.letter("R", fallback: kVK_ANSI_R)
+    static let toolbarDefault = Shortcut.letter("T", fallback: kVK_ANSI_T)
+    static let rainbowInkDefault = Shortcut.letter("A", fallback: kVK_ANSI_A, modifiers: UInt32(shiftKey))
     static let matchInkDefault = Shortcut.letter("A", fallback: kVK_ANSI_A)
     static let nextPointerDefault = Shortcut.letter("X", fallback: kVK_ANSI_X)
+    static let nextInkDefault = Shortcut.letter("V", fallback: kVK_ANSI_V)
+    static let copyScreenDefault = Shortcut(keyCode: UInt32(kVK_ANSI_C), modifiers: UInt32(cmdKey), display: "⌘C")
+    static let saveScreenDefault = Shortcut(keyCode: UInt32(kVK_ANSI_S), modifiers: UInt32(cmdKey), display: "⌘S")
+    static let previousInkDefault = Shortcut.letter("C", fallback: kVK_ANSI_C)
     static let previousPointerDefault = Shortcut.letter("Y", fallback: kVK_ANSI_Y)
-    static let soundDefault = Shortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: 0, display: "M")
-    static let undoDefault = Shortcut.letter("U", fallback: kVK_ANSI_U)
-    static let redoDefault = Shortcut.letter("I", fallback: kVK_ANSI_I)
+    static let soundDefault = Shortcut.letter("S", fallback: kVK_ANSI_S)
+    static let undoDefault = Shortcut.letter("Z", fallback: kVK_ANSI_Z, modifiers: UInt32(cmdKey))
+    static let redoDefault = Shortcut.letter("Z", fallback: kVK_ANSI_Z, modifiers: UInt32(shiftKey | cmdKey))
 }
 
 enum InteractKey: String, CaseIterable {
-    case option, command, control, off
+    case option, command, control, space, tab, off
 
     var title: String {
         switch self {
         case .option: return "⌥ Option"
         case .command: return "⌘ Command"
         case .control: return "⌃ Control"
+        case .space: return "Space"
+        case .tab: return "⇥ Tab"
         case .off: return "Off"
         }
     }
@@ -99,6 +110,8 @@ enum InteractKey: String, CaseIterable {
         case .option: return "⌥"
         case .command: return "⌘"
         case .control: return "⌃"
+        case .space: return "Space"
+        case .tab: return "⇥"
         case .off: return ""
         }
     }
@@ -108,6 +121,8 @@ enum InteractKey: String, CaseIterable {
         case .option: return .maskAlternate
         case .command: return .maskCommand
         case .control: return .maskControl
+        case .space: return HeldKeys.space
+        case .tab: return HeldKeys.tab
         case .off: return []
         }
     }
@@ -140,7 +155,7 @@ enum StrokeSmoothing: Int, CaseIterable {
 
 /// A modifier key that is held down, for example to zoom while it is pressed.
 enum HoldKey: String, CaseIterable {
-    case shift, control, option, command, off
+    case shift, control, option, command, space, tab, off
 
     var title: String {
         switch self {
@@ -148,6 +163,8 @@ enum HoldKey: String, CaseIterable {
         case .control: return "⌃ Control"
         case .option: return "⌥ Option"
         case .command: return "⌘ Command"
+        case .space: return "Space"
+        case .tab: return "⇥ Tab"
         case .off: return "Off"
         }
     }
@@ -158,8 +175,55 @@ enum HoldKey: String, CaseIterable {
         case .control: return .maskControl
         case .option: return .maskAlternate
         case .command: return .maskCommand
+        case .space: return HeldKeys.space
+        case .tab: return HeldKeys.tab
         case .off: return []
         }
+    }
+}
+
+/// Space and Tab can be held like ⇧⌃⌥⌘ while the pointer is on. They have no modifier flag of
+/// their own, so the event tap keeps track of them and they get made-up flag bits that no real
+/// key uses. `current` is the real modifier state plus those bits.
+enum HeldKeys {
+    static let space = CGEventFlags(rawValue: 1 << 40)
+    static let tab = CGEventFlags(rawValue: 1 << 41)
+    private static let lock = NSLock()
+    private static var held: CGEventFlags = []
+
+    static var current: CGEventFlags {
+        CGEventSource.flagsState(.hidSystemState).union(lock.withLock { held })
+    }
+
+    static func isHeld(_ flag: CGEventFlags) -> Bool {
+        lock.withLock { held.contains(flag) }
+    }
+
+    static func set(_ flag: CGEventFlags, down: Bool) {
+        lock.withLock {
+            if down {
+                held.insert(flag)
+            } else {
+                held.remove(flag)
+            }
+        }
+    }
+
+    static func reset() {
+        lock.withLock { held = [] }
+    }
+
+    /// The made-up flag for a key code, if Space or Tab is set as one of the hold keys.
+    static func flag(forKeyCode code: Int64) -> CGEventFlags? {
+        let flag: CGEventFlags
+        switch code {
+        case 49: flag = space
+        case 48: flag = tab
+        default: return nil
+        }
+        let used = [Preferences.interactKey.cgFlags, Preferences.stampKey.cgFlags,
+                    Preferences.zoomKey.cgFlags, Preferences.loupeAdjustKey.cgFlags]
+        return used.contains(flag) ? flag : nil
     }
 }
 
@@ -220,6 +284,28 @@ enum Preferences {
         set { saveShortcut(newValue, "shortcut.toolbar") }
     }
 
+    /// Copies a picture of the screen, with drawings and whiteboards, to the clipboard.
+    static var copyScreenShortcut: Shortcut {
+        get { loadShortcut("shortcut.copyScreen") ?? .copyScreenDefault }
+        set { saveShortcut(newValue, "shortcut.copyScreen") }
+    }
+
+    /// Saves that picture on the Desktop.
+    static var saveScreenShortcut: Shortcut {
+        get { loadShortcut("shortcut.saveScreen") ?? .saveScreenDefault }
+        set { saveShortcut(newValue, "shortcut.saveScreen") }
+    }
+
+    static var nextInkShortcut: Shortcut {
+        get { loadShortcut("shortcut.nextInk") ?? .nextInkDefault }
+        set { saveShortcut(newValue, "shortcut.nextInk") }
+    }
+
+    static var previousInkShortcut: Shortcut {
+        get { loadShortcut("shortcut.previousInk") ?? .previousInkDefault }
+        set { saveShortcut(newValue, "shortcut.previousInk") }
+    }
+
     static var nextPointerShortcut: Shortcut {
         get { loadShortcut("shortcut.nextPointer") ?? .nextPointerDefault }
         set { saveShortcut(newValue, "shortcut.nextPointer") }
@@ -258,14 +344,10 @@ enum Preferences {
     static let pointerSizeRange: ClosedRange<CGFloat> = 0.08...0.20
 
     static var pointerSize: CGFloat {
-        get { (defaults.object(forKey: "pointerSize") as? Double).map { CGFloat($0) } ?? 0.135 }
+        get { (defaults.object(forKey: "pointerSize") as? Double).map { CGFloat($0) } ?? 0.14 }
         set { set(Double(newValue), "pointerSize") }
     }
 
-    static var showShadow: Bool {
-        get { defaults.object(forKey: "showShadow") as? Bool ?? true }
-        set { set(newValue, "showShadow") }
-    }
 
     static var fadeSeconds: Double {
         get { defaults.object(forKey: "fadeSeconds") as? Double ?? 0 }
@@ -282,7 +364,7 @@ enum Preferences {
         set { set(newValue.rawValue, "tapSound") }
     }
 
-    /// Whether the color pointer taps too (stored under its old key, from when the laser dot shared it).
+    /// Whether the simple cursor taps too (stored under its old key, from when the laser dot shared it).
     static var colorPointerSound: Bool {
         get { defaults.object(forKey: "sound.laser") as? Bool ?? false }
         set { set(newValue, "sound.laser") }
@@ -331,7 +413,7 @@ enum Preferences {
     }
 
     static var strokeSmoothing: StrokeSmoothing {
-        get { StrokeSmoothing(rawValue: defaults.object(forKey: "strokeSmoothing") as? Int ?? 2) ?? .light }
+        get { StrokeSmoothing(rawValue: defaults.object(forKey: "strokeSmoothing") as? Int ?? 1) ?? .light }
         set { set(newValue.rawValue, "strokeSmoothing") }
     }
 
@@ -368,7 +450,7 @@ enum Preferences {
 
     /// Hold this key and click to stamp numbered circles: 1, 2, 3 …
     static var stampKey: HoldKey {
-        get { defaults.string(forKey: "stampKey").flatMap(HoldKey.init(rawValue:)) ?? .option }
+        get { defaults.string(forKey: "stampKey").flatMap(HoldKey.init(rawValue:)) ?? .shift }
         set { set(newValue.rawValue, "stampKey") }
     }
 
@@ -376,7 +458,7 @@ enum Preferences {
     /// Hold while the flashlight or loupe is open and move the mouse: sideways and up/down work
     /// like swiping (size and zoom), for a mouse that can only scroll one way.
     static var loupeAdjustKey: HoldKey {
-        get { defaults.string(forKey: "loupeAdjustKey").flatMap(HoldKey.init(rawValue:)) ?? .control }
+        get { defaults.string(forKey: "loupeAdjustKey").flatMap(HoldKey.init(rawValue:)) ?? .option }
         set { set(newValue.rawValue, "loupeAdjustKey") }
     }
 
@@ -388,7 +470,9 @@ enum Preferences {
 
     /// The flashlight/loupe is always on; only its key can be changed (never to Off).
     static var zoomKey: HoldKey {
-        get { defaults.string(forKey: "zoomKey").flatMap(HoldKey.init(rawValue:)).flatMap { $0 == .off ? nil : $0 } ?? .shift }
+        // Tab by default: ⇧ would turn scrolling sideways and starts most screenshot shortcuts,
+        // and ⌃ with scrolling is macOS's own screen zoom.
+        get { defaults.string(forKey: "zoomKey").flatMap(HoldKey.init(rawValue:)).flatMap { $0 == .off ? nil : $0 } ?? .tab }
         set {
             guard newValue != .off else {
                 return
@@ -412,10 +496,25 @@ enum Preferences {
 
     /// Only zooming above 1× needs Screen Recording; the flashlight works without it.
     static func requestScreenRecordingIfNeeded() {
-        guard zoomOn, !CGPreflightScreenCaptureAccess() else {
+        guard zoomOn else {
             return
         }
-        CGRequestScreenCaptureAccess()
+        askForScreenRecording()
+    }
+
+    /// Asks for Screen Recording: macOS's own prompt the first time, System Settings after that.
+    static func askForScreenRecording() {
+        guard !CGPreflightScreenCaptureAccess() else {
+            return
+        }
+        // The first time, macOS's own prompt has the button to System Settings, so we don't open
+        // them as well (that left the prompt standing over the hand after the relaunch). Once
+        // macOS has asked, it stays quiet, so from then on we open System Settings ourselves.
+        if !defaults.bool(forKey: "screenCaptureAsked") {
+            set(true, "screenCaptureAsked")
+            CGRequestScreenCaptureAccess()
+            return
+        }
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
             NSWorkspace.shared.open(url)
         }
@@ -425,27 +524,34 @@ enum Preferences {
 
     /// Diameter of the zoom loupe in points.
     static var loupeSize: Int {
-        get { min(800, max(200, defaults.object(forKey: "loupeSize") as? Int ?? 600)) }
+        get { min(800, max(200, defaults.object(forKey: "loupeSize") as? Int ?? 480)) }
         set { set(min(800, max(200, newValue)), "loupeSize") }
     }
 
     static let zoomFactorRange = 1.0...6.0
 
     static var zoomFactor: Double {
-        get { min(6, max(1, defaults.object(forKey: "zoomFactor") as? Double ?? 2)) }
+        get { min(6, max(1, defaults.object(forKey: "zoomFactor") as? Double ?? 1)) }
         set { set(min(6, max(1, newValue)), "zoomFactor") }
     }
 
 
     /// Resize the flashlight/loupe with up-and-down swipes (zoom then goes sideways).
     static var resizeVertically: Bool {
-        get { defaults.bool(forKey: "resizeVertically") }
+        get { defaults.object(forKey: "resizeVertically") as? Bool ?? true }
         set { set(newValue, "resizeVertically") }
+    }
+
+    /// Reverses scrolling with a mouse (not the trackpad): mouse software can set its own
+    /// direction, apart from macOS's.
+    static var reverseMouseScroll: Bool {
+        get { defaults.object(forKey: "reverseMouseScroll") as? Bool ?? true }
+        set { set(newValue, "reverseMouseScroll") }
     }
 
     /// Reverses both swipe directions (bigger and zoom in).
     static var reverseSwipe: Bool {
-        get { defaults.bool(forKey: "reverseSwipe") }
+        get { defaults.object(forKey: "reverseSwipe") as? Bool ?? true }
         set { set(newValue, "reverseSwipe") }
     }
 
@@ -453,31 +559,38 @@ enum Preferences {
 
     /// How dark the screen gets around the flashlight and the loupe, 10 % to 90 % black.
     static var dimAlpha: Double {
-        get { min(0.9, max(0.1, defaults.object(forKey: "dimAlpha") as? Double ?? 0.3)) }
+        get { min(0.9, max(0.1, defaults.object(forKey: "dimAlpha") as? Double ?? 0.5)) }
         set { set(min(0.9, max(0.1, newValue)), "dimAlpha") }
     }
 
 
-    static let strokeSizeRange = 2...20
+    /// 1 to 40 pt (a line can't be 0 wide, so 1 is the thinnest).
+    static let strokeSizeRange = 1...40
 
     /// Width of drawn lines in points.
     static var strokeSize: Int {
-        get { min(20, max(2, defaults.object(forKey: "strokeSize") as? Int ?? 8)) }
-        set { set(min(20, max(2, newValue)), "strokeSize") }
+        get { min(40, max(1, defaults.object(forKey: "strokeSize") as? Int ?? 10)) }
+        set { set(min(40, max(1, newValue)), "strokeSize") }
     }
 
     static let rainbowSpeedRange = 1...10
 
     /// How fast a rainbow line runs through the hues, 1 (slowest) to 10. At 5 a full cycle takes 8000 points of line.
     static var rainbowSpeed: Int {
-        get { min(10, max(1, defaults.object(forKey: "rainbowSpeed") as? Int ?? 4)) }
+        get { min(10, max(1, defaults.object(forKey: "rainbowSpeed") as? Int ?? 5)) }
         set { set(min(10, max(1, newValue)), "rainbowSpeed") }
     }
 
     /// Opacity of drawn lines in percent, 10 to 100, in steps of 10.
     static var inkOpacity: Int {
-        get { min(100, max(10, defaults.object(forKey: "inkOpacity") as? Int ?? 70)) }
+        get { min(100, max(10, defaults.object(forKey: "inkOpacity") as? Int ?? 80)) }
         set { set(min(100, max(10, newValue)), "inkOpacity") }
+    }
+
+    /// The opacity and size knobs in the toolbar.
+    static var showKnobs: Bool {
+        get { defaults.object(forKey: "showKnobs") as? Bool ?? false }
+        set { set(newValue, "showKnobs") }
     }
 
     static var showInkButton: Bool {
@@ -536,11 +649,11 @@ enum Preferences {
 
     static func resetAll() {
         for key in ["shortcut.toggle", "shortcut.clear", "shortcut.toolbar",
-                    "shortcut.nextPointer", "shortcut.previousPointer", "shortcut.sound",
+                    "shortcut.nextPointer", "shortcut.previousPointer", "shortcut.nextInk", "shortcut.previousInk", "shortcut.copyScreen", "shortcut.saveScreen", "shortcut.sound",
                     "shortcut.rainbowInk", "shortcut.matchInk", "shortcut.undo", "shortcut.redo", "pointerSize", "showShadow", "fadeSeconds",
                     "sound.hands", "sound.laser", "interactKey", "interactKeepsHand", "pinnedStyles", "pointerStyle",
-                    "inkChoice", "showInkButton", "tapSound", "showToolbar", "inkOpacity", "rainbowStep", "rainbowSpeed", "strokeSize",
-                    "toolbarX", "toolbarY", "tapRipples", "soundOnDraw", "strokeSmoothing", "zoomKey", "loupeAdjustKey", "arrowKey", "stampKey", "loupeSize", "rightClickExits", "zoomFactor", "zoomOn", "dimAlpha", "resizeVertically", "reverseSwipe", "zoomAnimated", "loupeDims", "showMenuBarIcon"] {
+                    "inkChoice", "showInkButton", "showKnobs", "tapSound", "showToolbar", "inkOpacity", "rainbowStep", "rainbowSpeed", "strokeSize",
+                    "toolbarX", "toolbarY", "tapRipples", "soundOnDraw", "strokeSmoothing", "zoomKey", "loupeAdjustKey", "arrowKey", "stampKey", "loupeSize", "rightClickExits", "zoomFactor", "zoomOn", "dimAlpha", "resizeVertically", "reverseSwipe", "reverseMouseScroll", "zoomAnimated", "loupeDims", "showMenuBarIcon"] {
             defaults.removeObject(forKey: key)
         }
         NotificationCenter.default.post(name: changed, object: nil)

@@ -24,6 +24,18 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
     var applyPreviousPointerShortcut: ((Shortcut) -> Bool)? {
         didSet { model.applyPreviousPointerShortcut = applyPreviousPointerShortcut }
     }
+    var applyCopyScreenShortcut: ((Shortcut) -> Bool)? {
+        didSet { model.applyCopyScreenShortcut = applyCopyScreenShortcut }
+    }
+    var applySaveScreenShortcut: ((Shortcut) -> Bool)? {
+        didSet { model.applySaveScreenShortcut = applySaveScreenShortcut }
+    }
+    var applyNextInkShortcut: ((Shortcut) -> Bool)? {
+        didSet { model.applyNextInkShortcut = applyNextInkShortcut }
+    }
+    var applyPreviousInkShortcut: ((Shortcut) -> Bool)? {
+        didSet { model.applyPreviousInkShortcut = applyPreviousInkShortcut }
+    }
     var applySoundShortcut: ((Shortcut) -> Bool)? {
         didSet { model.applySoundShortcut = applySoundShortcut }
     }
@@ -193,10 +205,12 @@ final class ShortcutRecorder: NSButton {
         let cap = KeyCap()
         cap.addSubview(label)
         cap.translatesAutoresizingMaskIntoConstraints = false
+        let centre = label.centerYAnchor.constraint(equalTo: cap.centerYAnchor)
+        cap.labelCentre = centre
         NSLayoutConstraint.activate([
-            cap.heightAnchor.constraint(equalToConstant: 20),
+            cap.heightAnchor.constraint(equalToConstant: 21),
             cap.widthAnchor.constraint(greaterThanOrEqualToConstant: 22),
-            label.centerYAnchor.constraint(equalTo: cap.centerYAnchor),
+            centre,
             label.leadingAnchor.constraint(equalTo: cap.leadingAnchor, constant: 6),
             label.trailingAnchor.constraint(equalTo: cap.trailingAnchor, constant: -6),
         ])
@@ -204,6 +218,27 @@ final class ShortcutRecorder: NSButton {
     }
 
     private final class KeyCap: NSView {
+        /// The label's vertical centring. On 1× screens the text sits a pixel high (its line box
+        /// has more room above the letters than below), so it moves down one pixel there.
+        var labelCentre: NSLayoutConstraint? {
+            didSet { alignForScreen() }
+        }
+
+        override func viewDidChangeBackingProperties() {
+            super.viewDidChangeBackingProperties()
+            alignForScreen()
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            alignForScreen()
+        }
+
+        private func alignForScreen() {
+            let scale = window?.backingScaleFactor ?? 2
+            labelCentre?.constant = scale < 2 ? 1 : 0
+        }
+
         override init(frame: NSRect) {
             super.init(frame: frame)
             wantsLayer = true

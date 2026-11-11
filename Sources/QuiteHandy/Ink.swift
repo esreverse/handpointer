@@ -3,7 +3,9 @@ import CoreText
 
 final class Ink {
     let layer = CALayer()
-    var keep: Bool { Preferences.fadeSeconds <= 0 }
+    /// Lines never fade (the whiteboard keeps everything until it is cleared).
+    var alwaysKeep = false
+    var keep: Bool { alwaysKeep || Preferences.fadeSeconds <= 0 }
 
     static let purple = CGColor(srgbRed: 0.53, green: 0.33, blue: 0.95, alpha: 1)
     static let red = CGColor(srgbRed: 1.0, green: 0.16, blue: 0.12, alpha: 1)
@@ -13,6 +15,8 @@ final class Ink {
                 blue: CGFloat(v & 0xFF) / 255, alpha: 1)
     }
     var color = Ink.purple
+    /// Lines are white with black dashes on top (the glove's ink).
+    var zebra = false
     var scale: CGFloat = 2
     private var fadeDelay: CFTimeInterval { max(0.5, Preferences.fadeSeconds) }
     private let fadeDuration: CFTimeInterval = 0.6
@@ -63,7 +67,8 @@ final class Ink {
         group.allowsGroupOpacity = true
         group.opacity = Float(Preferences.inkOpacity) / 100
         group.shadowColor = NSColor.black.cgColor
-        group.shadowOpacity = 0.18
+        // Lines and stamps are flat, without a shadow.
+        group.shadowOpacity = 0
         group.shadowRadius = 1.5
         group.shadowOffset = CGSize(width: 1, height: -1.5)
         layer.addSublayer(group)
@@ -111,12 +116,13 @@ final class Ink {
     }
 
     private func makeShape(color: CGColor) -> CAShapeLayer {
-        let s = CAShapeLayer()
-        s.strokeColor = color
+        let s = zebra && !rainbow ? ZebraLayer() : CAShapeLayer()
+        s.strokeColor = zebra && !rainbow ? NSColor.white.cgColor : color
         s.fillColor = nil
         s.lineWidth = width
         s.lineCap = .round
         s.lineJoin = .round
+        (s as? ZebraLayer)?.setUp(width: width)
         return s
     }
 
@@ -370,13 +376,19 @@ final class Ink {
         case move(CALayer, from: CGPoint, to: CGPoint)
         /// Stamps that got other numbers (two of them when numbers were swapped).
         case renumber([(layer: CALayer, from: Int, to: Int)])
+        /// Everything taken away at once (a new whiteboard sheet).
+        case removeAll([(layer: CALayer, number: Int?)])
     }
+
+    /// Told about every new step, so one history can keep the order across several inks.
+    var onRecord: ((Ink) -> Void)?
 
     private var undoSteps: [Step] = []
     private var redoSteps: [Step] = []
     private static let maxSteps = 200
 
     private func record(_ step: Step) {
+        onRecord?(self)
         undoSteps.append(step)
         if undoSteps.count > Ink.maxSteps {
             undoSteps.removeFirst()
@@ -385,29 +397,50 @@ final class Ink {
     }
 
     /// Takes back the last line or stamp change. Lines that have already faded are skipped.
-    func undo() {
+    /// False when there was nothing left to take back.
+    @discardableResult
+    func undo() -> Bool {
         guard stroke == nil, placing == nil else {
-            return
+            return false
         }
         while let step = undoSteps.popLast() {
             if apply(step, forward: false) {
                 redoSteps.append(step)
-                return
+                return true
             }
         }
+        return false
+    }
+
+    /// Takes everything away in one step that can be undone.
+    func clearUndoably() {
+        endStamp()
+        let all = (layer.sublayers ?? []).map { l in (layer: l, number: stampList.first { $0.layer === l }?.number) }
+        guard !all.isEmpty else {
+            return
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for item in all {
+            _ = hide(item.layer)
+        }
+        CATransaction.commit()
+        record(.removeAll(all))
     }
 
     /// Brings back what `undo` took back.
-    func redo() {
+    @discardableResult
+    func redo() -> Bool {
         guard stroke == nil, placing == nil else {
-            return
+            return false
         }
         while let step = redoSteps.popLast() {
             if apply(step, forward: true) {
                 undoSteps.append(step)
-                return
+                return true
             }
         }
+        return false
     }
 
     /// Does (`forward`) or takes back a step. False when it no longer applies, because the
@@ -427,6 +460,12 @@ final class Ink {
             }
             l.position = forward ? to : from
             return true
+        case let .removeAll(items):
+            var any = false
+            for item in items {
+                any = (forward ? hide(item.layer) : show(item.layer, number: item.number)) || any
+            }
+            return any
         case let .renumber(changes):
             guard changes.allSatisfy({ $0.layer.superlayer != nil }) else {
                 return false
@@ -548,7 +587,7 @@ final class Ink {
     private var placing: CALayer?
 
     /// Puts down a number stamp – a filled circle in the current ink colour and line opacity, with
-    /// a Playpen Sans number (weight 600) – and lets it follow the mouse. Held still, it grows.
+    /// a Fredoka number (weight 600) – and lets it follow the mouse. Held still, it grows.
     func beginStamp(at point: CGPoint, number stampNumber: Int) {
         // Same colour the next line would have (rainbow: where the last line ended).
         let fill = tapColor.copy(alpha: CGFloat(Preferences.inkOpacity) / 100) ?? tapColor
@@ -556,7 +595,7 @@ final class Ink {
         let group = CALayer()
         group.position = point
         group.shadowColor = NSColor.black.cgColor
-        group.shadowOpacity = 0.25
+        group.shadowOpacity = 0
         group.shadowRadius = 2
         group.shadowOffset = CGSize(width: 1, height: -2)
         group.setValue(fill, forKey: "stampFill")
@@ -666,9 +705,9 @@ final class Ink {
         return againstWhite > againstBlack ? NSColor.white.cgColor : NSColor.black.cgColor
     }
 
-    /// Playpen Sans at weight 600 (it ships as a variable font).
+    /// Fredoka at weight 600 (it ships as a variable font).
     private static func stampFont(size: CGFloat) -> CTFont {
-        let base = CTFontCreateWithName("Playpen Sans" as CFString, size, nil)
+        let base = CTFontCreateWithName("Fredoka" as CFString, size, nil)
         let weightAxis = 0x77676874  // 'wght'
         let attributes = [kCTFontVariationAttribute: [weightAxis: 600]] as CFDictionary
         let descriptor = CTFontDescriptorCreateWithAttributes(attributes)
@@ -793,5 +832,43 @@ final class Ink {
         CATransaction.setDisableActions(true)
         s.path = path
         CATransaction.commit()
+    }
+}
+
+
+/// A white line with black dashes on top, both following the same path.
+private final class ZebraLayer: CAShapeLayer {
+    private let dashes = CAShapeLayer()
+
+    override init() {
+        super.init()
+    }
+
+    override init(layer: Any) {
+        super.init(layer: layer)
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+
+    func setUp(width: CGFloat) {
+        dashes.strokeColor = NSColor.black.cgColor
+        dashes.fillColor = nil
+        dashes.lineWidth = width
+        dashes.lineCap = .butt
+        dashes.lineJoin = .round
+        let dash = max(4, width * 1.6) as NSNumber
+        dashes.lineDashPattern = [dash, dash]
+        addSublayer(dashes)
+    }
+
+    override var path: CGPath? {
+        didSet {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            dashes.path = path
+            CATransaction.commit()
+        }
     }
 }

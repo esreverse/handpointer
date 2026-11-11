@@ -39,6 +39,30 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
     private let animDuration: CFTimeInterval = 0.25
     private var lastHeld = Date.distantPast
     private static let keepStreamFor: TimeInterval = 3
+    /// Letting go fades the darkening out instead of switching it off.
+    private var dimFadingOut = false
+    /// The darkening fades in and out over half a second.
+    private static let dimFadeDuration: CFTimeInterval = 0.5
+    private var dimFadeToken = 0
+
+    private func fadeOutDim() {
+        guard dim.isVisible, !dimFadingOut else {
+            return
+        }
+        dimFadingOut = true
+        dimFadeToken += 1
+        let token = dimFadeToken
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = Magnifier.dimFadeDuration
+            dim.animator().alphaValue = 0
+        }, completionHandler: { [weak self] in
+            guard let self = self, self.dimFadeToken == token else {
+                return
+            }
+            self.dimFadingOut = false
+            self.dim.orderOut(nil)
+        })
+    }
 
     private var flashOn = false
     /// Set once the loupe has finished opening, until it closes.
@@ -100,6 +124,8 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
         w.hasShadow = false
         w.ignoresMouseEvents = true
         w.isReleasedWhenClosed = false
+        // No zoom-in when shown: macOS would grow it from smaller, cutting off its edges.
+        w.animationBehavior = .none
         w.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 4)
         w.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         return w
@@ -120,6 +146,8 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
         window.hasShadow = false
         window.ignoresMouseEvents = true
         window.isReleasedWhenClosed = false
+        // No zoom-in when shown: macOS would grow it from smaller, cutting off its edges.
+        window.animationBehavior = .none
         window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 3)
         window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         dim = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 100, height: 100),
@@ -129,6 +157,8 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
         dim.hasShadow = false
         dim.ignoresMouseEvents = true
         dim.isReleasedWhenClosed = false
+        // No zoom-in when shown: macOS would grow it from smaller, cutting off its edges.
+        dim.animationBehavior = .none
         dim.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 2)
         dim.collectionBehavior = window.collectionBehavior
         super.init()
@@ -277,12 +307,10 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
         }
         flashOn = held
         guard held else {
-            if dim.isVisible {
-                dim.orderOut(nil)
-            }
+            fadeOutDim()
             return
         }
-        let t = min(1, max(0, (CACurrentMediaTime() - flashStart) / animDuration))
+        let t = min(1, max(0, (CACurrentMediaTime() - flashStart) / Magnifier.dimFadeDuration))
         let size = CGFloat(Preferences.loupeSize)
         let spot = CGRect(x: mouse.x - size / 2, y: mouse.y - size / 2, width: size, height: size)
         layoutDim(screen: screen.frame, loupe: spot, alpha: CGFloat(1 - pow(1 - t, 3)))
@@ -309,7 +337,7 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
         }
         if hidden {
             window.orderOut(nil)
-            dim.orderOut(nil)
+            fadeOutDim()
             badgeWindow.orderOut(nil)
         } else {
             window.orderFrontRegardless()
@@ -330,6 +358,15 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
         dimLayer.frame = CGRect(origin: .zero, size: screen.size)
         dimLayer.path = path
         CATransaction.commit()
+        if dimFadingOut {
+            // Pressed again while it was fading out: stop the fade and go on from here.
+            dimFadingOut = false
+            dimFadeToken += 1
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0
+                dim.animator().alphaValue = alpha
+            }
+        }
         dim.alphaValue = alpha
         if !dim.isVisible {
             dim.orderFrontRegardless()
@@ -341,7 +378,7 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
         guard let since = heldSince else {
             return 1
         }
-        let t = min(1, max(0, (CACurrentMediaTime() - since) / animDuration))
+        let t = min(1, max(0, (CACurrentMediaTime() - since) / Magnifier.dimFadeDuration))
         return CGFloat(1 - pow(1 - t, 3))
     }
 
@@ -366,8 +403,8 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
                 // Waiting for the first captured frame: the darkening is already there.
                 let spot = CGRect(x: mouse.x - size / 2, y: mouse.y - size / 2, width: size, height: size)
                 layoutDim(screen: frame, loupe: spot, alpha: dimFade)
-            } else if dim.isVisible {
-                dim.orderOut(nil)
+            } else {
+                fadeOutDim()
             }
             return
         }

@@ -17,6 +17,146 @@ final class Toolbar {
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     }
 
+    /// A small turning knob: drag up to turn it right (more), down to turn it left (less). The value
+    /// is read at a fixed white dot at 12 o'clock: the opacity knob is a disc going from clear to
+    /// solid white around it, the size knob a snail whose radius grows around it.
+    final class Knob: NSView {
+        private let unit: String
+        private let range: ClosedRange<Int>
+        /// Points of mouse travel per step.
+        private let pointsPerStep: CGFloat
+        private let get: () -> Int
+        private let set: (Int) -> Void
+        private var dragStart: (y: CGFloat, value: Int)?
+        var onChange: (() -> Void)?
+        /// True while it is being turned, so the toolbar stays out even if the pointer leaves it.
+        private(set) var isDragging = false
+
+        init(unit: String, range: ClosedRange<Int>, pointsPerStep: CGFloat, get: @escaping () -> Int, set: @escaping (Int) -> Void) {
+            self.unit = unit
+            self.range = range
+            self.pointsPerStep = pointsPerStep
+            self.get = get
+            self.set = set
+            super.init(frame: CGRect(x: 0, y: 0, width: 40, height: 40))
+            translatesAutoresizingMaskIntoConstraints = false
+            widthAnchor.constraint(equalToConstant: 40).isActive = true
+            heightAnchor.constraint(equalToConstant: 40).isActive = true
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) not used")
+        }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        /// Where the value sits between the least (0) and the most (1).
+        private var fraction: CGFloat {
+            CGFloat(get() - range.lowerBound) / CGFloat(max(1, range.upperBound - range.lowerBound))
+        }
+
+        override func draw(_ dirtyRect: NSRect) {
+            guard let ctx = NSGraphicsContext.current?.cgContext else {
+                return
+            }
+            let c = CGPoint(x: bounds.midX, y: bounds.midY - 2)
+            let rMax: CGFloat = 10
+            // The fixed reading mark: a small white dot just outside the knob at 12 o'clock.
+            ctx.setFillColor(NSColor.white.cgColor)
+            ctx.fillEllipse(in: CGRect(x: c.x - 1.25, y: c.y + rMax + 3, width: 2.5, height: 2.5))
+
+            // The knob turns clockwise as the value grows; what is at 12 o'clock is the value.
+            // Around the knob (counter-clockwise from the top, before turning) the value grows
+            // from the least to the most.
+            ctx.saveGState()
+            ctx.translateBy(x: c.x, y: c.y)
+            ctx.rotate(by: -fraction * 2 * .pi)
+            let steps = 120
+            // The size knob's snail sits on a 20 % black disc; the opacity knob has no background.
+            if unit != "%" {
+                ctx.setFillColor(NSColor(white: 0, alpha: 0.2).cgColor)
+                ctx.fillEllipse(in: CGRect(x: -rMax, y: -rMax, width: 2 * rMax, height: 2 * rMax))
+            }
+            if unit != "%" {
+                // Size: a white snail whose radius grows around it, solid at its small end and
+                // dimmer towards its large end.
+                for i in 0..<steps {
+                    let t0 = CGFloat(i) / CGFloat(steps)
+                    let t1 = CGFloat(i + 1) / CGFloat(steps)
+                    let a0 = .pi / 2 + t0 * 2 * .pi
+                    // A hair of overlap so no seams show between the slices.
+                    let a1 = .pi / 2 + t1 * 2 * .pi + 0.01
+                    let r0 = 3 + (rMax - 3) * t0
+                    let r1 = 3 + (rMax - 3) * t1
+                    let slice = CGMutablePath()
+                    slice.move(to: .zero)
+                    slice.addLine(to: CGPoint(x: cos(a0) * r0, y: sin(a0) * r0))
+                    slice.addLine(to: CGPoint(x: cos(a1) * r1, y: sin(a1) * r1))
+                    slice.closeSubpath()
+                    ctx.setFillColor(NSColor(white: 1, alpha: 1 - 0.45 * t0).cgColor)
+                    ctx.addPath(slice)
+                    ctx.fillPath()
+                }
+                ctx.restoreGState()
+                return
+            }
+            for i in 0..<steps {
+                let t0 = CGFloat(i) / CGFloat(steps)
+                let t1 = CGFloat(i + 1) / CGFloat(steps)
+                // Angles from 12 o'clock, counter-clockwise.
+                let a0 = .pi / 2 + t0 * 2 * .pi
+                let a1 = .pi / 2 + t1 * 2 * .pi
+                let wedge = CGMutablePath()
+                wedge.move(to: .zero)
+                if unit == "%" {
+                    // Opacity: a full disc whose white goes from clear to solid around it.
+                    wedge.addArc(center: .zero, radius: rMax, startAngle: a0, endAngle: a1 + 0.01, clockwise: false)
+                    ctx.setFillColor(NSColor(white: 1, alpha: t0).cgColor)
+                } else {
+                    // Size: a snail whose radius grows from small to large around it.
+                    let r0 = 3 + (rMax - 3) * t0
+                    let r1 = 3 + (rMax - 3) * t1
+                    wedge.addLine(to: CGPoint(x: cos(a0) * r0, y: sin(a0) * r0))
+                    wedge.addLine(to: CGPoint(x: cos(a1) * r1, y: sin(a1) * r1))
+                    ctx.setFillColor(NSColor.white.cgColor)
+                }
+                wedge.closeSubpath()
+                ctx.addPath(wedge)
+                ctx.fillPath()
+            }
+            ctx.restoreGState()
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            dragStart = (NSEvent.mouseLocation.y, get())
+            isDragging = true
+            needsDisplay = true
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            guard let start = dragStart else {
+                return
+            }
+            let steps = Int(((NSEvent.mouseLocation.y - start.y) / pointsPerStep).rounded())
+            let value = min(range.upperBound, max(range.lowerBound, start.value + steps))
+            if value != get() {
+                set(value)
+                onChange?()
+            }
+            needsDisplay = true
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            dragStart = nil
+            isDragging = false
+            needsDisplay = true
+        }
+
+        func refresh() {
+            needsDisplay = true
+        }
+    }
+
     /// Grip on the left end: drag to move the toolbar, right-click to put it back.
     private final class Handle: NSView {
         var onMoved: (() -> Void)?
@@ -70,6 +210,22 @@ final class Toolbar {
     private var current: PointerStyle?
     private var inkButton: Button?
     private var swatches: [InkChoice: Button] = [:]
+    private var knobs: [Knob] = []
+    /// The toolbar's window, to leave it out of screenshots.
+    var windowNumber: Int { panel.windowNumber }
+    /// The line between the knobs and the colours.
+    private var knobDivider: NSView?
+    /// True while a knob is being turned: the toolbar stays out until the mouse goes up.
+    var isAdjusting: Bool { knobs.contains { $0.isDragging } }
+
+    private func refreshKnobTips() {
+        guard knobs.count == 2 else {
+            return
+        }
+        tips[knobs[0]] = "Opacity \(Preferences.inkOpacity)% (drag up/down)"
+        tips[knobs[1]] = "Size \(Preferences.strokeSize) pt (drag up/down)"
+        knobs.forEach { $0.refresh() }
+    }
     private var inkDivider: NSView?
     private var inkOpen = false
     private let permissionButton = Button()
@@ -147,6 +303,21 @@ final class Toolbar {
         handleView = handle
 
         stack.addArrangedSubview(Toolbar.divider())
+        // Two knobs left of the colours: opacity in %, stroke size in pt.
+        let opacityKnob = Knob(unit: "%", range: 10...100, pointsPerStep: 2,
+                               get: { Preferences.inkOpacity }, set: { Preferences.inkOpacity = $0 })
+        let sizeKnob = Knob(unit: "pt", range: Preferences.strokeSizeRange, pointsPerStep: 3,
+                            get: { Preferences.strokeSize }, set: { Preferences.strokeSize = $0 })
+        for k in [opacityKnob, sizeKnob] {
+            // The simple cursor in the toolbar follows the knobs live.
+            k.onChange = { [weak self] in self?.refreshInk() }
+            stack.addArrangedSubview(k)
+            knobs.append(k)
+        }
+        let knobDivider = Toolbar.divider()
+        self.knobDivider = knobDivider
+        stack.addArrangedSubview(knobDivider)
+        refreshKnobTips()
         // Ink colours sit right in the toolbar, one button each, instead of in a pop-up tray.
         for choice in InkChoice.allCases {
             let b = makeButton(image: nil, tip: choice.title) {
@@ -241,8 +412,8 @@ final class Toolbar {
     }
 
     func refreshInk() {
+        let color = currentInkColor?() ?? Ink.hex(0xFFFFFF)
         if let b = styleButtons[.stroke] {
-            let color = currentInkColor?() ?? Ink.hex(0xFFFFFF)
             b.image = Toolbar.padded(Toolbar.colorPointerIcon(color))
         }
         let hidden = !Preferences.showInkButton
@@ -256,6 +427,16 @@ final class Toolbar {
                 changed = true
             }
         }
+        let knobsHidden = !Preferences.showKnobs
+        for k in knobs where k.isHidden != knobsHidden {
+            k.isHidden = knobsHidden
+            changed = true
+        }
+        if let d = knobDivider, d.isHidden != knobsHidden {
+            d.isHidden = knobsHidden
+            changed = true
+        }
+        refreshKnobTips()
         if let divider = inkDivider, divider.isHidden != hidden {
             divider.isHidden = hidden
             changed = true
@@ -287,7 +468,9 @@ final class Toolbar {
         }
         styleButtons = [:]
         for (i, style) in styles.enumerated() {
-            let b = makeButton(image: Toolbar.padded(Toolbar.icon(for: style)), tip: style.title) { [weak self] in
+            // Hands are named "… cursor" in the tooltip.
+            let tip = style.assetName != nil ? "\(style.title) cursor" : style.title
+            let b = makeButton(image: Toolbar.padded(Toolbar.icon(for: style)), tip: tip) { [weak self] in
                 self?.onPick?(style)
             }
             styleButtons[style] = b
@@ -471,6 +654,15 @@ final class Toolbar {
 
     /// Call on every overlay tick with the mouse in screen coordinates.
     func updateHover(mouse: CGPoint) {
+        // While a knob is turned its tooltip stays up and shows the value as it changes.
+        if let k = knobs.first(where: { $0.isDragging }), let text = tips[k] {
+            if hovered !== k {
+                hovered = k
+                showHover(on: k)
+            }
+            showTip(text, over: k)
+            return
+        }
         let view = revealed ? tips.keys.first { v in
             guard !v.isHidden, v.window === panel else {
                 return false
@@ -504,6 +696,8 @@ final class Toolbar {
             p.ignoresMouseEvents = true
             p.level = panel.level
             p.collectionBehavior = panel.collectionBehavior
+            // Tooltips only fade in: no zoom or slide from macOS.
+            p.animationBehavior = .none
             let (tipGlass, bg) = Glass.make(radius: 8)
             p.contentView = tipGlass
             tipContent = bg
@@ -525,7 +719,14 @@ final class Toolbar {
         let r = panel.convertToScreen(view.convert(view.bounds, to: nil))
         p.setFrameOrigin(CGPoint(x: r.midX - p.frame.width / 2, y: panel.frame.maxY + 6))
         p.invalidateShadow()
-        p.orderFrontRegardless()
+        if !p.isVisible {
+            p.alphaValue = 0
+            p.orderFrontRegardless()
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.12
+                p.animator().alphaValue = 1
+            }
+        }
     }
 
     private static let hoverColor = NSColor(white: 1, alpha: 0.1).cgColor
@@ -616,6 +817,11 @@ final class Toolbar {
     }
 
     func show() {
+        // Only our own fade: no zoom-in from macOS when the panel appears.
+        panel.animationBehavior = .none
+        if !revealed {
+            panel.alphaValue = 0
+        }
         panel.orderFrontRegardless()
         panel.invalidateShadow()
     }
@@ -649,7 +855,8 @@ final class Toolbar {
             return
         }
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = value ? 0.15 : 0.35
+            // Fades in over 0.3 s (like the toolbar on the website), out over 0.35 s.
+            ctx.duration = value ? 0.3 : 0.35
             panel.animator().alphaValue = value ? 1 : 0
         }
     }
@@ -703,12 +910,37 @@ final class Toolbar {
             let r: CGFloat = 13
             (NSColor(cgColor: color) ?? .white).setFill()
             NSBezierPath(ovalIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)).fill()
-            NSColor(white: 1, alpha: 0.3).setStroke()
-            let outline = NSBezierPath(ovalIn: CGRect(x: c.x - r + 0.5, y: c.y - r + 0.5, width: 2 * r - 1, height: 2 * r - 1))
-            outline.lineWidth = 1
-            outline.stroke()
+            Toolbar.strokeOutline(center: c, radius: r)
             return true
         }
+    }
+
+    /// A bold "A" as a shape, centred on its own outline at `center` and `height` tall. Drawn as
+    /// a shape it never snaps to a pixel row, so it stays put on 1× screens as the size changes.
+    static func letterA(center c: CGPoint, height: CGFloat) -> CGPath {
+        let font = CTFontCreateWithName("Helvetica-Bold" as CFString, 100, nil)
+        var unichar: UniChar = 65  // "A"
+        var glyph = CGGlyph()
+        CTFontGetGlyphsForCharacters(font, &unichar, &glyph, 1)
+        guard let path = CTFontCreatePathForGlyph(font, glyph, nil) else {
+            return CGMutablePath()
+        }
+        let box = path.boundingBoxOfPath
+        let k = height / box.height
+        var t = CGAffineTransform(translationX: c.x, y: c.y)
+            .scaledBy(x: k, y: k)
+            .translatedBy(x: -box.midX, y: -box.midY)
+        return path.copy(using: &t) ?? CGMutablePath()
+    }
+
+    /// The thin light ring every dot in the toolbar has, so dark colours show on the dark bar.
+    /// `width` is in image points; the dots are drawn at 64 and shown at 40.
+    private static func strokeOutline(center c: CGPoint, radius r: CGFloat, width: CGFloat = 1) {
+        NSColor(white: 1, alpha: 0.3).setStroke()
+        let outline = NSBezierPath(ovalIn: CGRect(x: c.x - r + width / 2, y: c.y - r + width / 2,
+                                                  width: 2 * r - width, height: 2 * r - width))
+        outline.lineWidth = width
+        outline.stroke()
     }
 
     /// A dot with a horizontal gradient through all hues, for the rainbow ink.
@@ -719,12 +951,12 @@ final class Toolbar {
             let r: CGFloat = 13
             NSColor.white.setFill()
             NSBezierPath(ovalIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)).fill()
-            let text = NSAttributedString(string: "A", attributes: [
-                .font: NSFont.systemFont(ofSize: 17, weight: .bold),
-                .foregroundColor: NSColor.black,
-            ])
-            let size = text.size()
-            text.draw(at: CGPoint(x: c.x - size.width / 2, y: c.y - size.height / 2))
+            if let g = NSGraphicsContext.current?.cgContext {
+                g.setFillColor(NSColor.black.cgColor)
+                g.addPath(Toolbar.letterA(center: c, height: 12))
+                g.fillPath()
+            }
+            Toolbar.strokeOutline(center: c, radius: r)
             return true
         }
     }
@@ -742,6 +974,7 @@ final class Toolbar {
                 color.setFill()
                 path.fill()
             }
+            Toolbar.strokeOutline(center: c, radius: r)
             return true
         }
     }
@@ -766,12 +999,54 @@ final class Toolbar {
         return box
     }
 
-    /// The color pointer: a solid dot in the colour it will draw with.
-    static func colorPointerIcon(_ color: CGColor) -> NSImage {
-        NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
+    /// The simple cursor: a solid dot in the colour it will draw with.
+    /// In the toolbar it shows the real stroke size and opacity: the 64 pt image is drawn padded
+    /// (75 %) in a 40 pt button, so sizes are scaled up by that much here.
+    static func colorPointerIcon(_ color: CGColor, live: Bool = true) -> NSImage {
+        let shown: CGFloat = 40.0 / 64.0 * 0.75
+        // Real size, but never bigger than the button.
+        let r = live ? min(30, CGFloat(Preferences.strokeSize) / 2 / shown) : 7
+        let alpha = live ? CGFloat(Preferences.inkOpacity) / 100 : 1
+        return NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
             let c = CGPoint(x: rect.midX, y: rect.midY)
-            (NSColor(cgColor: color) ?? .white).setFill()
-            NSBezierPath(ovalIn: CGRect(x: c.x - 7, y: c.y - 7, width: 14, height: 14)).fill()
+            let dot = CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)
+            // It shows the chosen ink the way its button does: rainbow as the rainbow, automatic
+            // as white with an "A" (just a black dot in the middle when it is small).
+            let choice = live ? Preferences.inkChoice : .match
+            NSGraphicsContext.current?.cgContext.setAlpha(alpha)
+            switch choice {
+            case .rainbow:
+                let colors: [NSColor] = [.systemRed, .systemOrange, .systemYellow, .systemGreen, .systemBlue, .systemPurple]
+                for (i, color) in colors.enumerated() {
+                    let wedge = NSBezierPath()
+                    wedge.move(to: c)
+                    wedge.appendArc(withCenter: c, radius: r, startAngle: CGFloat(i) * 60 + 90, endAngle: CGFloat(i + 1) * 60 + 90)
+                    wedge.close()
+                    color.setFill()
+                    wedge.fill()
+                }
+            case .match where live:
+                NSColor.white.setFill()
+                NSBezierPath(ovalIn: dot).fill()
+                // On screen the dot is r × shown points wide; below about 16 pt an "A" can't be read.
+                if r * shown * 2 >= 16 {
+                    if let g = NSGraphicsContext.current?.cgContext {
+                        g.setFillColor(NSColor.black.cgColor)
+                        g.addPath(Toolbar.letterA(center: c, height: r * 0.95))
+                        g.fillPath()
+                    }
+                } else {
+                    let m = max(1.5 / shown, r * 0.3)
+                    NSColor.black.setFill()
+                    NSBezierPath(ovalIn: CGRect(x: c.x - m, y: c.y - m, width: 2 * m, height: 2 * m)).fill()
+                }
+            default:
+                (NSColor(cgColor: color) ?? .white).setFill()
+                NSBezierPath(ovalIn: dot).fill()
+            }
+            NSGraphicsContext.current?.cgContext.setAlpha(1)
+            // Same ring as the colour dots; this image is shown smaller (padded), so a bit wider.
+            Toolbar.strokeOutline(center: c, radius: r, width: (40.0 / 64.0) / shown)
             return true
         }
     }

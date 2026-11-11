@@ -5,6 +5,21 @@ so write it for people using the app.
 
 
 
+## 1.6.0
+
+- Hand Pointer is now called Quite Handy. It is a new app on your Mac: allow Accessibility once more in System Settings, and Open at login is now on by default
+- Whiteboards: Click the sheet in the bottom-right corner, or drag one out to the size you want. Draw on several boards at once, move and resize them, switch light and dark, copy or save each one as a PNG
+- One undo history for everything: lines, stamps and whiteboards
+- Screenshots: ⌘C copies and ⌘S saves the screen, or the whiteboard under the pointer, without the hand
+- Flashlight: Hold Tab for a spotlight that darkens the rest of the screen; turn on Zoom to magnify inside it. Swipe to change its size and zoom, or hold ⌥ and move the mouse
+- Space and Tab can now be used as hold keys, like ⇧ ⌃ ⌥ ⌘
+- Opacity and size knobs in the toolbar, and keys to step through the ink colours (V and C)
+- The glove draws in black and white so its lines show on any background
+- Number stamps use a rounder font, grow while you hold, and go up to 9
+- New defaults: R clears, ⌘Z and ⇧⌘Z undo and redo, ⇧ stamps, T shows the toolbar
+- Settings are reorganised with a new Toolbar page, and Esc always ends the session
+
+
 ## 1.5.0
 
 - Tiny Pointer is now called Hand Pointer

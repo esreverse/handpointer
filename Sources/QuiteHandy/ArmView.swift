@@ -2,6 +2,9 @@ import AppKit
 
 final class ArmView: NSView {
     private let group = CALayer()
+    /// Holds rod and hand inside `group`; it scales from the grip along the stick when the
+    /// pointer turns on, so the hand grows out along the way it points.
+    private let grow = CALayer()
     private let rodLayer = CALayer()
     private let handLayer = CALayer()
     /// The stroke pointer: a dot as big, as opaque and in the colour of the line you would draw.
@@ -11,14 +14,23 @@ final class ArmView: NSView {
     private var asset: HandAsset?
 
     private var handLenFrac: CGFloat = Preferences.pointerSize
-    private var showShadow = Preferences.showShadow
     private let minRodFrac: CGFloat = 0.05
     private let gripLeanFrac: CGFloat = 0.30
     private let gripDepthFrac: CGFloat = 0.12
     private let gripFollow: CGFloat = 0.08
     private let liftFrac: CGFloat = 0.06
 
-    let ink = Ink()
+    /// Ink on the screen, and ink on the whiteboard; `ink` is the one drawing goes to right now.
+    let screenInk = Ink()
+    /// The ink of the whiteboard being drawn on, if any; otherwise drawing goes on the screen.
+    var targetInk: Ink? {
+        didSet {
+            targetInk?.color = screenInk.color
+            targetInk?.zebra = screenInk.zebra
+            targetInk?.scale = screenInk.scale
+        }
+    }
+    var ink: Ink { targetInk ?? screenInk }
     var held = false
     var inkWidth: CGFloat { CGFloat(Preferences.strokeSize) }
 
@@ -52,8 +64,9 @@ final class ArmView: NSView {
         didSet {
             CATransaction.begin()
             CATransaction.setDisableActions(true)
-            group.isHidden = pointerHidden || hiddenForZoom || style == .stroke
-            brushLayer.isHidden = pointerHidden || hiddenForZoom || style != .stroke
+            let dot = style == .stroke
+            group.isHidden = pointerHidden || hiddenForZoom || dot
+            brushLayer.isHidden = pointerHidden || hiddenForZoom || !dot
             CATransaction.commit()
         }
     }
@@ -64,15 +77,17 @@ final class ArmView: NSView {
         root.masksToBounds = false
         layer = root
         wantsLayer = true
-        root.addSublayer(ink.layer)
+        root.addSublayer(screenInk.layer)
         root.addSublayer(group)
 
         root.addSublayer(brushLayer)
         brushLayer.strokeColor = nil
 
         group.masksToBounds = false
-        group.addSublayer(rodLayer)
-        group.addSublayer(handLayer)
+        group.addSublayer(grow)
+        grow.anchorPoint = CGPoint(x: 0.5, y: 0)
+        grow.addSublayer(rodLayer)
+        grow.addSublayer(handLayer)
         for sub in [rodLayer, handLayer] {
             sub.contentsGravity = .resize
             sub.contentsScale = 2
@@ -84,7 +99,6 @@ final class ArmView: NSView {
         setStyle(PointerStyle.saved)
         NotificationCenter.default.addObserver(forName: Preferences.changed, object: nil, queue: .main) { [weak self] _ in
             self?.handLenFrac = Preferences.pointerSize
-            self?.showShadow = Preferences.showShadow
         }
     }
 
@@ -131,7 +145,11 @@ final class ArmView: NSView {
     }
 
     func updateInkColor() {
-        ink.color = Preferences.inkChoice.resolved(for: style)
+        screenInk.color = Preferences.inkChoice.resolved(for: style)
+        // The glove draws black and white in turns, so its lines show on any background.
+        screenInk.zebra = Preferences.inkChoice == .match && style == .glove
+        targetInk?.color = screenInk.color
+        targetInk?.zebra = screenInk.zebra
     }
 
     func setStyle(_ newStyle: PointerStyle) {
@@ -163,7 +181,95 @@ final class ArmView: NSView {
         pressAmount = 1
     }
 
+    private var lastCursor = CGPoint.zero
+
+    /// After a colour shortcut: a small tap circle at the fingertip in the new colour, so you see
+    /// which colour you now draw with.
+    /// The colour-change circle, drawn at 2× for `radius` points.
+    private static func inkFlashImage(radius: CGFloat, colour: CGColor) -> CGImage? {
+        let px = Int(radius * 4)
+        guard let ctx = CGContext(data: nil, width: px, height: px, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            return nil
+        }
+        ctx.scaleBy(x: 2, y: 2)
+        ctx.setAlpha(CGFloat(Preferences.inkOpacity) / 100)
+        let c = CGPoint(x: radius, y: radius)
+        let disc = CGRect(x: 0, y: 0, width: radius * 2, height: radius * 2)
+        switch Preferences.inkChoice {
+        case .rainbow:
+            let colours: [NSColor] = [.systemRed, .systemOrange, .systemYellow, .systemGreen, .systemBlue, .systemPurple]
+            for (i, colour) in colours.enumerated() {
+                let wedge = CGMutablePath()
+                wedge.move(to: c)
+                wedge.addArc(center: c, radius: radius, startAngle: (CGFloat(i) * 60 + 90) * .pi / 180,
+                             endAngle: (CGFloat(i + 1) * 60 + 90) * .pi / 180, clockwise: false)
+                wedge.closeSubpath()
+                ctx.setFillColor(colour.cgColor)
+                ctx.addPath(wedge)
+                ctx.fillPath()
+            }
+        case .match:
+            ctx.setFillColor(NSColor.white.cgColor)
+            ctx.fillEllipse(in: disc)
+            ctx.setFillColor(NSColor.black.cgColor)
+            ctx.addPath(Toolbar.letterA(center: c, height: radius * 0.8))
+            ctx.fillPath()
+        default:
+            ctx.setFillColor(colour)
+            ctx.fillEllipse(in: disc)
+        }
+        return ctx.makeImage()
+    }
+
+    func flashInk() {
+        updateInkColor()
+        let radius: CGFloat = 36
+        // Looks like the chosen ink's button: the rainbow as a rainbow, automatic as white with
+        // an "A", any other colour as a plain dot.
+        let circle = CALayer()
+        circle.bounds = CGRect(x: 0, y: 0, width: radius * 2, height: radius * 2)
+        circle.contents = ArmView.inkFlashImage(radius: radius, colour: ink.tapColor)
+        circle.contentsScale = 2
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        circle.position = lastCursor
+        circle.opacity = 0
+        layer?.insertSublayer(circle, below: group)
+        CATransaction.commit()
+        let grow = CABasicAnimation(keyPath: "transform.scale")
+        grow.fromValue = 0.4
+        grow.toValue = 1.8
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 1
+        fade.toValue = 0
+        fade.timingFunction = CAMediaTimingFunction(controlPoints: 0.33, 1, 0.68, 1)
+        let anim = CAAnimationGroup()
+        anim.animations = [grow, fade]
+        anim.duration = 0.6
+        anim.fillMode = .both
+        anim.isRemovedOnCompletion = false
+        circle.add(anim, forKey: "tap")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [weak circle] in
+            circle?.removeFromSuperlayer()
+        }
+    }
+
+    /// When the pointer is turned on: the hand on its stick grows out from the grip along the
+    /// way it points (ease-out); the simple cursor's dot grows in where it is.
+    func animateIn() {
+        let scale = CABasicAnimation(keyPath: "transform.scale")
+        scale.fromValue = 0.4
+        scale.toValue = 1
+        scale.duration = 0.35
+        scale.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.8, 0.3, 1)
+        grow.add(scale, forKey: "appear")
+        brushLayer.add(scale, forKey: "appear")
+    }
+
     func aim(cursor: CGPoint) {
+        lastCursor = cursor
         let screenH = bounds.height
         let targetX = min(max(cursor.x + gripLeanFrac * bounds.width, bounds.width * 0.15), bounds.width * 1.05)
         let gx = gripX.map { $0 + (targetX - $0) * gripFollow } ?? targetX
@@ -209,7 +315,7 @@ final class ArmView: NSView {
             height: sx * sin(-rotation) + sy * cos(-rotation)
         )
 
-        let pose = [rotation, rodLen, handPts, widthPts, grip.x, lift, pressAmount, showShadow ? 1 : 0, a.aspect]
+        let pose = [rotation, rodLen, handPts, widthPts, grip.x, lift, pressAmount, a.aspect]
             .map { ($0 * 100).rounded() }
         guard pose != lastPose else {
             return
@@ -222,7 +328,8 @@ final class ArmView: NSView {
         for sub in [rodLayer, handLayer] {
             sub.shadowOffset = shadowOffset
             sub.shadowRadius = max(1, lift * 0.35) + 5 * pressAmount
-            sub.shadowOpacity = showShadow ? Float(0.26 + 0.02 * pressAmount) : 0
+            // The hand always casts a shadow.
+            sub.shadowOpacity = Float(0.26 + 0.02 * pressAmount)
         }
 
         rodLayer.bounds = CGRect(x: 0, y: 0, width: widthPts, height: rodLen)
@@ -231,6 +338,8 @@ final class ArmView: NSView {
         handLayer.position = CGPoint(x: widthPts / 2, y: rodLen)
 
         group.bounds = CGRect(x: 0, y: 0, width: widthPts, height: rodLen + handPts)
+        grow.bounds = group.bounds
+        grow.position = CGPoint(x: widthPts / 2, y: 0)
         group.position = grip
         group.transform = CATransform3DMakeRotation(rotation, 0, 0, 1)
 
@@ -285,6 +394,7 @@ final class ArmView: NSView {
         let scale = window?.backingScaleFactor ?? 2
         rodLayer.contentsScale = scale
         handLayer.contentsScale = scale
-        ink.scale = scale
+        screenInk.scale = scale
+        targetInk?.scale = scale
     }
 }

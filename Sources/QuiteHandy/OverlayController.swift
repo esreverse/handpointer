@@ -1,4 +1,5 @@
 import AppKit
+import ScreenCaptureKit
 import Carbon.HIToolbox
 
 final class OverlayController {
@@ -12,6 +13,13 @@ final class OverlayController {
     /// while the hand (in `window`) stays on top of everything.
     private let inkWindow: OverlayWindow
     private let armView: ArmView
+    private let whiteboard: Whiteboard
+    /// One undo/redo history for screen ink, whiteboard ink and the whiteboard itself.
+    private let history = History()
+    /// A press on the whiteboard's sheet, handles or floating board, followed until mouse up.
+    private var boardGesture: (hit: Whiteboard.Hit, board: Whiteboard.Board?)?
+    /// The whiteboard the current press draws on (nil: the screen).
+    private var targetBoard: Whiteboard.Board?
     private let inputTap = InputTap()
     private let tapSound = TapSound()
     private var interactHeld = false
@@ -34,7 +42,6 @@ final class OverlayController {
     private var menuRects: [CGRect] = []
     private var lastMenuScan = Date.distantPast
     private var menuOpeningUntil = Date.distantPast
-    private var escHotKey: UInt32?
     private var lastPermissionCheck = Date.distantPast
 
     private static let busyInterval: TimeInterval = 1.0 / 120.0
@@ -52,6 +59,8 @@ final class OverlayController {
     private var activity: NSObjectProtocol?
     var onActiveChanged: (() -> Void)?
     var onNeedsPermission: (() -> Void)?
+    /// The cog above the sheet in the corner.
+    var onOpenSettings: (() -> Void)?
 
     init() {
         let frame = (NSScreen.main ?? NSScreen.screens.first).map { $0.frame }
@@ -63,6 +72,8 @@ final class OverlayController {
         window.hasShadow = false
         window.ignoresMouseEvents = true
         window.isReleasedWhenClosed = false
+        // No zoom-in when shown: macOS would grow it from smaller, cutting off its edges.
+        window.animationBehavior = .none
         window.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 2)
         window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
 
@@ -72,17 +83,26 @@ final class OverlayController {
         inkWindow.hasShadow = false
         inkWindow.ignoresMouseEvents = true
         inkWindow.isReleasedWhenClosed = false
+        // No zoom-in when shown: macOS would grow it from smaller, cutting off its edges.
+        inkWindow.animationBehavior = .none
         inkWindow.level = .screenSaver
         inkWindow.collectionBehavior = window.collectionBehavior
 
-        armView = ArmView(frame: NSRect(origin: .zero, size: frame.size))
+        let arm = ArmView(frame: NSRect(origin: .zero, size: frame.size))
+        armView = arm
+        whiteboard = Whiteboard()
         let inkView = NSView(frame: NSRect(origin: .zero, size: frame.size))
         inkView.layer = CALayer()
         inkView.wantsLayer = true
         inkView.autoresizingMask = [.width, .height]
-        inkView.layer?.addSublayer(armView.ink.layer)
+        inkView.layer?.addSublayer(armView.screenInk.layer)
         inkWindow.contentView = inkView
         window.contentView = armView
+
+        history.board = whiteboard
+        armView.screenInk.onRecord = { [weak self] ink in self?.history.add(.ink(ink)) }
+        whiteboard.onInkRecord = { [weak self] ink in self?.history.add(.ink(ink)) }
+        whiteboard.onChange = { [weak self] b, from, to in self?.history.add(.board(b, from, to)) }
 
         inputTap.onMouseDown = { [weak self] in
             guard let self = self else {
@@ -92,14 +112,60 @@ final class OverlayController {
             let mouse = NSEvent.mouseLocation
             // While zooming, clicks and drags never do anything.
             let zoomFlags = Preferences.zoomKey.cgFlags
-            if !zoomFlags.isEmpty, CGEventSource.flagsState(.hidSystemState).contains(zoomFlags) {
+            if !zoomFlags.isEmpty, HeldKeys.current.contains(zoomFlags) {
                 self.ignoringPress = true
                 return
             }
+            // The whiteboards: the sheets in the corner, and each board's buttons, handles and grip.
+            // A press on a board brings it to the front and draws on it; elsewhere on the screen.
+            if let p = self.localMouse() {
+                let (hit, board) = self.whiteboard.hit(p)
+                if let board = board {
+                    self.whiteboard.bringToFront(board)
+                }
+                self.targetBoard = board
+                self.armView.targetInk = board?.ink
+                switch hit {
+                case .peek:
+                    self.history.beginGroup()
+                    self.whiteboard.beginPull(at: p)
+                    self.boardGesture = (.peek, nil)
+                    self.noteButtonEvent()
+                    return
+                case .settings:
+                    self.ignoringPress = true
+                    self.noteButtonEvent()
+                    DispatchQueue.main.async { self.onOpenSettings?() }
+                    return
+                case .close, .save, .copy, .theme:
+                    if let board = board {
+                        self.whiteboard.press(board, hit)
+                    }
+                    self.ignoringPress = true
+                    self.noteButtonEvent()
+                    return
+                case .topLeft, .bottomRight:
+                    if let board = board {
+                        self.whiteboard.beginResize(board, hit, at: p)
+                    }
+                    self.boardGesture = (hit, board)
+                    self.noteButtonEvent()
+                    return
+                case .floating, .grip:
+                    if let board = board {
+                        self.whiteboard.grab(board, at: p)
+                    }
+                    self.boardGesture = (.floating, board)
+                    self.noteButtonEvent()
+                    return
+                case .board, .none:
+                    break
+                }
+            }
             // Number stamp: place it where the button goes down; dragging moves it.
             let stampFlags = Preferences.stampKey.cgFlags
-            if !stampFlags.isEmpty, CGEventSource.flagsState(.hidSystemState).contains(stampFlags),
-               let p = self.localMouse() {
+            if !stampFlags.isEmpty, HeldKeys.current.contains(stampFlags),
+               let p = self.inkMouse() {
                 // All nine numbers placed: a click with the stamp key does nothing.
                 guard self.armView.ink.pressStamp(at: p) else {
                     self.ignoringPress = true
@@ -132,8 +198,20 @@ final class OverlayController {
             if self?.ignoringPress == true {
                 return
             }
+            if let self = self, let gesture = self.boardGesture, let p = self.localMouse() {
+                switch gesture.hit {
+                case .peek: self.whiteboard.pull(to: p)
+                case .floating: self.whiteboard.carry(to: p)
+                default:
+                    if let board = gesture.board {
+                        self.whiteboard.drag(board, gesture.hit, to: p)
+                    }
+                }
+                self.wake()
+                return
+            }
             if let self = self, self.armView.ink.isPlacingStamp {
-                if let p = self.localMouse() {
+                if let p = self.inkMouse() {
                     self.armView.ink.moveStamp(to: p)
                 }
                 return
@@ -154,6 +232,22 @@ final class OverlayController {
             if let self = self, self.draggingToolbar {
                 self.draggingToolbar = false
                 self.toolbar.endDrag()
+                return
+            }
+            if let self = self, let gesture = self.boardGesture {
+                self.boardGesture = nil
+                switch gesture.hit {
+                case .peek:
+                    self.whiteboard.endPull()
+                    self.history.endGroup()
+                case .floating:
+                    self.whiteboard.drop()
+                default:
+                    if let board = gesture.board {
+                        self.whiteboard.endResize(board)
+                    }
+                }
+                self.noteButtonEvent()
                 return
             }
             if let self = self, self.armView.ink.isPlacingStamp {
@@ -180,17 +274,27 @@ final class OverlayController {
             // Mouse deltas grow downwards, like scroll deltas: up is negative in both.
             self?.scrollLoupe(dx: dx, dy: dy, phase: .changed, fromMouse: true)
         }
+        inputTap.onEsc = { [weak self] in self?.exit() }
+        inputTap.onKeyWhileLoupe = { [weak self] in
+            guard let self = self, self.magnifier.isShowing else {
+                return
+            }
+            self.cancelZoom()
+        }
         inputTap.onStampDigit = { [weak self] digit in
             guard let self = self, let p = self.localMouse() else {
                 return
             }
-            self.armView.ink.renumberStamp(at: p, to: digit)
+            let (ink, q) = self.inkAndPoint(at: p)
+            ink.renumberStamp(at: q, to: digit)
         }
-        armView.ink.onStampPopped = { [weak self] in
+        let popped: () -> Void = { [weak self] in
             // Grown to full size and put down: the rest of this press does nothing.
             self?.armView.held = false
             self?.ignoringPress = true
         }
+        armView.screenInk.onStampPopped = popped
+        whiteboard.onStampPopped = popped
         inputTap.onLoupeScroll = { [weak self] dx, dy, phase in
             self?.scrollLoupe(dx: dx, dy: dy, phase: phase)
         }
@@ -247,7 +351,7 @@ final class OverlayController {
         }
     }
 
-    /// The color pointer has its own "taps too" sound setting.
+    /// The simple cursor has its own "taps too" sound setting.
     private var usesDotSound: Bool { armView.style == .stroke }
 
     var soundOn: Bool {
@@ -303,8 +407,11 @@ final class OverlayController {
         }
     }
 
+    /// Right click or Esc: everything goes, screen and whiteboard.
     func exit() {
-        clearInk()
+        armView.screenInk.clear()
+        whiteboard.reset()
+        history.clear()
         deactivate()
     }
 
@@ -398,7 +505,10 @@ final class OverlayController {
         // resizing snaps back to its half step when the swipe ends.
         // Right and up count as positive; Settings can reverse that and swap which axis resizes.
         // Mouse moves follow the hand: right and up are always bigger and zoom in.
-        let sign: CGFloat = Preferences.reverseSwipe && !fromMouse ? -1 : 1
+        // A mouse wheel (no swipe phases) has its own reverse setting; the trackpad uses the
+        // swipe one.
+        let reverse = phase == .wheel ? Preferences.reverseMouseScroll : Preferences.reverseSwipe
+        let sign: CGFloat = reverse && !fromMouse ? -1 : 1
         let horizontal = dx * sign
         let vertical = -dy * sign
         let sizeAmount = Preferences.resizeVertically ? vertical : horizontal
@@ -453,20 +563,131 @@ final class OverlayController {
         Preferences.loupeSize += Int(step)
     }
 
+    /// Clears the board under the pointer, or the screen when there is none.
+    /// ⌘C / ⌘S: over a whiteboard, that board; elsewhere a picture of the whole screen under the
+    /// pointer, with drawings and whiteboards but without the hand, the toolbar and the sheets in
+    /// the corner. Copied, or saved on the desktop.
+    func captureScreen(save: Bool) {
+        // Over a whiteboard: just that board (the topmost one under the pointer), like its own
+        // copy and save buttons.
+        if let p = localMouse(), let board = whiteboard.board(at: p) {
+            whiteboard.press(board, save ? .save : .copy)
+            return
+        }
+        guard #available(macOS 14.0, *) else {
+            whiteboard.showScreenToast("Needs macOS 14 or later", success: false)
+            return
+        }
+        guard CGPreflightScreenCaptureAccess() else {
+            whiteboard.showScreenToast("Allow screen recording in Settings first", success: false)
+            return
+        }
+        guard let screen = currentScreen(), let id = screen.displayID else {
+            return
+        }
+        let skip = Set([window.windowNumber, toolbar.windowNumber])
+        let scale = screen.backingScaleFactor
+        whiteboard.setCornerHidden(true)
+        // Give the corner a frame to disappear before the picture is taken.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) { content, _ in
+                guard let content = content, let display = content.displays.first(where: { $0.displayID == id }) else {
+                    DispatchQueue.main.async { self?.whiteboard.setCornerHidden(false) }
+                    return
+                }
+                let excluded = content.windows.filter { skip.contains(Int($0.windowID)) }
+                let filter = SCContentFilter(display: display, excludingWindows: excluded)
+                let config = SCStreamConfiguration()
+                config.width = Int(CGFloat(display.width) * scale)
+                config.height = Int(CGFloat(display.height) * scale)
+                config.showsCursor = false
+                SCScreenshotManager.captureImage(contentFilter: filter, configuration: config) { image, _ in
+                    let png = image.flatMap { NSBitmapImageRep(cgImage: $0).representation(using: .png, properties: [:]) }
+                    DispatchQueue.main.async {
+                        guard let self = self else {
+                            return
+                        }
+                        self.whiteboard.setCornerHidden(false)
+                        guard let png = png else {
+                            self.whiteboard.showScreenToast("Could not take the screenshot", success: false)
+                            return
+                        }
+                        if save {
+                            let f = DateFormatter()
+                            f.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
+                            let url = FileManager.default.homeDirectoryForCurrentUser
+                                .appendingPathComponent("Desktop/Quite Handy \(f.string(from: Date())).png")
+                            if (try? png.write(to: url)) != nil {
+                                self.whiteboard.showScreenToast("Screenshot saved to desktop", success: true)
+                            } else {
+                                self.whiteboard.showScreenToast("Could not save the screenshot", success: false)
+                            }
+                        } else {
+                            let pb = NSPasteboard.general
+                            pb.clearContents()
+                            pb.setData(png, forType: .png)
+                            self.whiteboard.showScreenToast("Screenshot copied to clipboard", success: true)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Set when the flashlight/loupe was cut off by another key; cleared when the zoom key goes up.
+    private var zoomCancelled = false
+
+    private func cancelZoom() {
+        guard !zoomCancelled else {
+            return
+        }
+        zoomCancelled = true
+        finishZoomDrag()
+        magnifier.reset()
+        armView.hiddenForZoom = false
+    }
+
+    /// After a colour shortcut: the new colour shows for a moment next to the fingertip.
+    func flashInkColor() {
+        armView.flashInk()
+        wake()
+    }
+
     func clearInk() {
-        armView.ink.clear()
+        let p = localMouse() ?? .zero
+        inkAndPoint(at: p).ink.clear()
+    }
+
+    /// The ink under `p` (the topmost board's, or the screen's) and `p` in its coordinates.
+    private func inkAndPoint(at p: CGPoint) -> (ink: Ink, point: CGPoint) {
+        if let b = whiteboard.board(at: p) {
+            return (b.ink, CGPoint(x: p.x - b.offset.x, y: p.y - b.offset.y))
+        }
+        return (armView.screenInk, p)
+    }
+
+    /// `p` in the coordinates of the ink being drawn on now.
+    private func inkPoint(_ p: CGPoint) -> CGPoint {
+        guard let b = targetBoard else {
+            return p
+        }
+        return CGPoint(x: p.x - b.offset.x, y: p.y - b.offset.y)
+    }
+
+    private func inkMouse() -> CGPoint? {
+        localMouse().map(inkPoint)
     }
 
     func undoInk() {
-        armView.ink.undo()
+        history.undo()
     }
 
     func redoInk() {
-        armView.ink.redo()
+        history.redo()
     }
 
     private func drag() {
-        guard let start = downPoint, let p = localMouse() else {
+        guard let start = downPoint.map(inkPoint), let p = inkMouse() else {
             return
         }
         let ink = armView.ink
@@ -509,10 +730,18 @@ final class OverlayController {
         }
         isActive = true
         currentFrame = nil
+        // A flashlight key still held from the shortcut that turned us on (⌃ of ⌃⇥) doesn't
+        // count: the flashlight only comes with the next press.
+        let zoomFlags = Preferences.zoomKey.cgFlags
+        zoomCancelled = !zoomFlags.isEmpty && HeldKeys.current.contains(zoomFlags)
         tapSound.warm()
 
         CursorHider.hide()
         tick()
+        // Our own entrance (macOS's window animation would cut off the edges): the hand grows
+        // in, the sheets slide in from the bottom right.
+        armView.animateIn()
+        whiteboard.animateIn()
         inkWindow.orderFrontRegardless()
         window.orderFrontRegardless()
 
@@ -568,12 +797,15 @@ final class OverlayController {
         }
         armView.held = false
         downPoint = nil
-        armView.ink.clear()
+        armView.targetInk = nil
+        targetBoard = nil
+        armView.screenInk.clear()
         magnifier.reset()
         armView.hiddenForZoom = false
         window.ignoresMouseEvents = true
         window.orderOut(nil)
         inkWindow.orderOut(nil)
+        whiteboard.hide()
         toolbar.hide()
         normalCursor = false
         armView.pointerHidden = false
@@ -590,10 +822,11 @@ final class OverlayController {
         let needsPermission = !inputTap.isInstalled
         let drawing = armView.ink.isDrawing
         let key = Preferences.interactKey.cgFlags
-        let interacting = (!key.isEmpty && CGEventSource.flagsState(.hidSystemState).contains(key)) || inputTap.interactPressing
+        let interacting = (!key.isEmpty && HeldKeys.current.contains(key)) || inputTap.interactPressing
         let wantToolbar = Preferences.showToolbar || needsPermission
         // While the interact key is held the toolbar gets out of the way at once, without fading.
-        toolbar.setRevealed(wantToolbar && !drawing && !interacting && (near || Date() < revealUntil || needsPermission),
+        toolbar.setRevealed(wantToolbar && !drawing && !interacting
+                            && (near || toolbar.isAdjusting || Date() < revealUntil || needsPermission),
                             animated: !interacting)
 
         let menuLikely = !menuRects.isEmpty || ownMenuOpen || Date() < menuOpeningUntil
@@ -638,16 +871,10 @@ final class OverlayController {
         inputTap.rightExitRects = toolbar.revealed ? [OverlayController.cgRect(f)] : []
     }
 
+    /// Esc ends the session, except while a menu (or another app's window above ours) is open:
+    /// then Esc is for that.
     private func setEscEnabled(_ enabled: Bool) {
-        if enabled && isActive && escHotKey == nil {
-            escHotKey = HotKeyCenter.shared.register(keyCode: UInt32(kVK_Escape), modifiers: 0) { [weak self] in
-                self?.exit()
-            }
-        }
-        if !enabled, let id = escHotKey {
-            HotKeyCenter.shared.unregister(id)
-            escHotKey = nil
-        }
+        inputTap.escExits = enabled && isActive
     }
 
     private static func menuBarRect(_ screen: NSScreen) -> CGRect {
@@ -655,17 +882,34 @@ final class OverlayController {
         return CGRect(x: screen.frame.minX, y: screen.frame.maxY - height, width: screen.frame.width, height: height)
     }
 
+    /// Open menus, and other apps' windows that lie above ours: clicks there go to them.
     private static func openMenus() -> [CGRect] {
         guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
                 as? [[String: Any]] else {
             return []
         }
         let menuLevel = Int(CGWindowLevelForKey(.popUpMenuWindow))
+        // Windows of other apps above our own (screensaver level and up): a screenshot tool's
+        // layer for picking an area (⇧⌘4, ⇧⌘5 or any other tool) lies over the hand and the
+        // drawing, so clicks there are meant for it, like clicks in a menu.
+        // Only windows that cover most of a screen count: small ones up there (the screen
+        // recording indicator, for one) must not take clicks or Esc away.
+        let ourTop = Int(CGWindowLevelForKey(.screenSaverWindow)) + 4
+        let me = getpid()
+        let screens = NSScreen.screens.map { $0.frame.size }
         return list.compactMap { info in
-            guard (info[kCGWindowLayer as String] as? Int) == menuLevel,
+            let layer = info[kCGWindowLayer as String] as? Int ?? 0
+            let pid = info[kCGWindowOwnerPID as String] as? pid_t ?? 0
+            guard layer == menuLevel || (layer > ourTop && pid != me),
                   let bounds = info[kCGWindowBounds as String] as? NSDictionary,
                   let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary) else {
                 return nil
+            }
+            if layer != menuLevel {
+                let covers = screens.contains { rect.width * rect.height >= 0.5 * $0.width * $0.height }
+                guard covers else {
+                    return nil
+                }
             }
             return rect
         }
@@ -815,11 +1059,23 @@ final class OverlayController {
                 release()
                 revealUntil = Date().addingTimeInterval(1.5)
             }
-            armView.ink.clear()
-            window.setFrame(screen.frame, display: false)
-            inkWindow.setFrame(screen.frame, display: false)
+            armView.screenInk.clear()
+            // Moving the full-screen windows to another size would show their old picture
+            // stretched (and cut off at the old size) for a moment: hide them while they move and
+            // fade them back in once they have drawn at the new size.
+            let windows: [NSWindow] = [window, inkWindow] + whiteboard.windows
+            windows.forEach { $0.alphaValue = 0 }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            whiteboard.show(on: screen.frame)
+            window.setFrame(screen.frame, display: true)
+            inkWindow.setFrame(screen.frame, display: true)
             armView.frame = NSRect(origin: .zero, size: screen.frame.size)
+            CATransaction.commit()
             toolbar.place(on: screen)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                windows.forEach { $0.alphaValue = 1 }
+            }
         }
 
         if mouse != lastMouse {
@@ -828,19 +1084,36 @@ final class OverlayController {
         }
 
         updateZones(mouse: mouse, screen: screen)
+        if let local = localMouse() {
+            whiteboard.update(mouse: local)
+        }
         let zoomFlags = Preferences.zoomKey.cgFlags
-        let zoomHeld = !zoomFlags.isEmpty && !interactHeld
-            && CGEventSource.flagsState(.hidSystemState).contains(zoomFlags)
+        let flags = HeldKeys.current
+        let zoomKeyDown = !zoomFlags.isEmpty && flags.contains(zoomFlags)
+        // Another modifier (not the zoom or adjust key) or any other key turns the flashlight and
+        // loupe off at once, without fading, until the zoom key is pressed again: it may be a
+        // screenshot shortcut such as ⇧⌘4.
+        let allowed = zoomFlags.union(Preferences.loupeAdjustKey.cgFlags)
+        let others = flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).subtracting(allowed)
+        if !zoomKeyDown {
+            zoomCancelled = false
+        } else if !others.isEmpty || interactHeld {
+            cancelZoom()
+        }
+        let zoomHeld = zoomKeyDown && !interactHeld && !zoomCancelled
         let adjustFlags = Preferences.loupeAdjustKey.cgFlags
         setAdjustingLoupe(zoomHeld && magnifier.isShowing && !adjustFlags.isEmpty
-            && CGEventSource.flagsState(.hidSystemState).contains(adjustFlags))
+            && HeldKeys.current.contains(adjustFlags))
         if !zoomHeld {
             finishZoomDrag()
         }
         magnifier.update(held: zoomHeld, mouse: mouse, screen: screen)
         armView.hiddenForZoom = magnifier.isShowing
         inputTap.loupeShowing = magnifier.isShowing
-        inputTap.hoveringStamp = localMouse().map { armView.ink.stamp(at: $0) != nil } ?? false
+        inputTap.hoveringStamp = localMouse().map { p in
+            let (ink, q) = inkAndPoint(at: p)
+            return ink.stamp(at: q) != nil
+        } ?? false
         let overDock = DockArea.contains(OverlayController.cgPoint(mouse))
         let overToolbar = toolbar.revealed && toolbar.frame.contains(mouse)
         let catchMouse = overDock && !overToolbar && inputTap.isInstalled && !normalCursor && !interactHeld
@@ -856,7 +1129,7 @@ final class OverlayController {
         let local = CGPoint(x: mouse.x - screen.frame.origin.x, y: mouse.y - screen.frame.origin.y)
         armView.aim(cursor: local)
         guard downPoint != nil else {
-            let busy = overDock || (!normalCursor && urgent) || CursorHider.isSettling || magnifier.isBusy
+            let busy = overDock || (!normalCursor && urgent) || CursorHider.isSettling || magnifier.isBusy || whiteboard.isAnimating
             updatePace(busy: busy)
             return
         }

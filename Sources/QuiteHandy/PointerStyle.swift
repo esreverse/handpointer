@@ -19,12 +19,12 @@ struct PointerStyle: Hashable {
     static let coral = PointerStyle("coral")
     static let plush = PointerStyle("plush")
     static let robot = PointerStyle("robot")
-    /// Color pointer: no hand, a dot at the cursor in the stroke's size, colour and opacity.
+    /// Simple cursor: no hand, a dot at the cursor in the stroke's size, colour and opacity.
     static let stroke = PointerStyle("stroke")
 
     private static let builtIn: [(id: String, title: String, ink: CGColor)] = [
         ("lavender", "Lavender toy", Ink.purple),
-        ("glove", "Cursor glove", Ink.hex(0xFFFFFF)),
+        ("glove", "Glove", Ink.hex(0xFFFFFF)),
         ("coral", "Coral vinyl", Ink.red),
         ("plush", "Plush", Ink.hex(0x2F86F0)),
         ("robot", "Robot", Ink.hex(0x16A87A)),
@@ -77,7 +77,7 @@ struct PointerStyle: Hashable {
         Preferences.pinnedStyles.filter { $0 != .stroke } + [.stroke]
     }
 
-    static let defaultPinned: [PointerStyle] = [.glove, PointerStyle("cookie"), PointerStyle("choco"), PointerStyle("skeleton"), PointerStyle("knit")]
+    static let defaultPinned: [PointerStyle] = [.glove, PointerStyle("choco"), PointerStyle("knit")]
 
     var isCustom: Bool {
         CustomHands.hand(rawValue) != nil
@@ -85,7 +85,7 @@ struct PointerStyle: Hashable {
 
     var title: String {
         if self == .stroke {
-            return "Color pointer"
+            return "Simple cursor"
         }
         if let custom = CustomHands.hand(rawValue) {
             return custom.name
@@ -105,13 +105,13 @@ struct PointerStyle: Hashable {
 
     var inkColor: CGColor {
         if self == .stroke {
-            // The color pointer has no colour of its own: with automatic colour it draws white.
+            // The simple cursor has no colour of its own: with automatic colour it draws white.
             return Ink.hex(0xFFFFFF)
         }
         if let custom = CustomHands.hand(rawValue) {
             return Ink.hex(custom.ink)
         }
-        return PointerStyle.builtIn.first { $0.id == rawValue }?.ink ?? Ink.purple
+        return PointerStyle.builtIn.first { $0.id == rawValue }?.ink ?? Ink.hex(0xFFFFFF)
     }
 
     private static let defaultsKey = "pointerStyle"
@@ -119,7 +119,7 @@ struct PointerStyle: Hashable {
     static var saved: PointerStyle {
         get {
             let raw = UserDefaults.standard.string(forKey: defaultsKey)
-            // The laser dot is gone: the color pointer is the closest thing to it.
+            // The laser dot is gone: the simple cursor is the closest thing to it.
             if raw == "dot" || raw == "laser" {
                 return .stroke
             }

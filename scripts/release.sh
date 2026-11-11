@@ -88,8 +88,8 @@ TOOLS="$(sparkle_tools)"
 if [[ -n "${SPARKLE_PRIVATE_KEY:-}" ]]; then
     ENCLOSURE="$(printf '%s' "$SPARKLE_PRIVATE_KEY" | "$TOOLS/sign_update" --ed-key-file - "$DMG")"
 else
-    # The EdDSA key was created as "tinypointer" and stays under that keychain account.
-    ENCLOSURE="$("$TOOLS/sign_update" --account tinypointer "$DMG")"
+    # The EdDSA key lives in the login keychain under the account "quitehandy".
+    ENCLOSURE="$("$TOOLS/sign_update" --account quitehandy "$DMG")"
 fi
 # Release notes for the update dialog: RELEASE_NOTES if set, otherwise this version's section
 # of CHANGELOG.md ("## <version>" up to the next "## ").

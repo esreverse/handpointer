@@ -1,12 +1,17 @@
 import AppKit
 import CoreText
 
-// Fonts shipped in Resources (Playpen Sans for the number stamps).
+// Fonts shipped in Resources (Fredoka for the number stamps).
 for url in Bundle.main.urls(forResourcesWithExtension: "ttf", subdirectory: nil) ?? [] {
     CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
 }
 import ApplicationServices
 
+if let idx = CommandLine.arguments.firstIndex(of: "--whiteboard-test") {
+    let out = CommandLine.arguments.count > idx + 1 ? CommandLine.arguments[idx + 1] : "/tmp/whiteboard.png"
+    Whiteboard.renderTest(outPath: out, pulling: CommandLine.arguments.contains("--pulling"))
+    exit(0)
+}
 if let idx = CommandLine.arguments.firstIndex(of: "--render-test") {
     let out = CommandLine.arguments.count > idx + 1 ? CommandLine.arguments[idx + 1] : "/tmp/armtest.png"
     RenderTest.run(outPath: out)
@@ -56,6 +61,16 @@ if let idx = CommandLine.arguments.firstIndex(of: "--settings-test") {
     let dark = ProcessInfo.processInfo.environment["TH_DARK"] != nil
     if let image = SettingsWindow().snapshot(section, dark: dark),
        let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
+        try? data.write(to: URL(fileURLWithPath: out))
+        print("rendered \(out)")
+    }
+    exit(0)
+}
+
+if let idx = CommandLine.arguments.firstIndex(of: "--zoom-sheet-test") {
+    _ = NSApplication.shared
+    let out = CommandLine.arguments.count > idx + 1 ? CommandLine.arguments[idx + 1] : "/tmp/zoom-sheet.png"
+    if let data = ZoomPermissionSheet.snapshot()?.representation(using: .png, properties: [:]) {
         try? data.write(to: URL(fileURLWithPath: out))
         print("rendered \(out)")
     }

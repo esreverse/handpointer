@@ -3,7 +3,7 @@ import ApplicationServices
 import SwiftUI
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, shortcuts, drawing, zoom, pointers, sound, about
+    case general, shortcuts, toolbar, drawing, zoom, pointers, sound, about
 
     var id: String { rawValue }
 
@@ -12,8 +12,9 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general: return "General"
         case .pointers: return "Pointers"
         case .shortcuts: return "Shortcuts"
+        case .toolbar: return "Toolbar"
         case .drawing: return "Draw"
-        case .zoom: return "Flashlight/Loupe"
+        case .zoom: return "Flashlight"
         case .sound: return "Sound"
         case .about: return "About"
         }
@@ -24,6 +25,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general: return "gearshape.fill"
         case .pointers: return "hand.point.up.left.fill"
         case .shortcuts: return "keyboard"
+        case .toolbar: return "menubar.dock.rectangle"
         case .drawing: return "pencil.tip"
         case .zoom: return "plus.magnifyingglass"
         case .sound: return "speaker.wave.2.fill"
@@ -36,6 +38,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general: return Color(white: 0.55)
         case .pointers: return Color(red: 0.55, green: 0.42, blue: 0.95)
         case .shortcuts: return Color(red: 0.36, green: 0.4, blue: 0.9)
+        case .toolbar: return Color(red: 0.45, green: 0.52, blue: 0.6)
         case .drawing: return Color(red: 0.96, green: 0.58, blue: 0.2)
         case .zoom: return Color(red: 0.2, green: 0.72, blue: 0.68)
         case .sound: return Color(red: 0.2, green: 0.55, blue: 0.98)
@@ -55,6 +58,10 @@ final class SettingsModel: ObservableObject {
     var applyRainbowInkShortcut: ((Shortcut) -> Bool)?
     var applyMatchInkShortcut: ((Shortcut) -> Bool)?
     var applyNextPointerShortcut: ((Shortcut) -> Bool)?
+    var applyNextInkShortcut: ((Shortcut) -> Bool)?
+    var applyCopyScreenShortcut: ((Shortcut) -> Bool)?
+    var applySaveScreenShortcut: ((Shortcut) -> Bool)?
+    var applyPreviousInkShortcut: ((Shortcut) -> Bool)?
     var applyPreviousPointerShortcut: ((Shortcut) -> Bool)?
     var applySoundShortcut: ((Shortcut) -> Bool)?
     var applyUndoShortcut: ((Shortcut) -> Bool)?
@@ -265,6 +272,10 @@ final class SettingsModel: ObservableObject {
         _ = applyRainbowInkShortcut?(.rainbowInkDefault)
         _ = applyMatchInkShortcut?(.matchInkDefault)
         _ = applyNextPointerShortcut?(.nextPointerDefault)
+        _ = applyNextInkShortcut?(.nextInkDefault)
+        _ = applyCopyScreenShortcut?(.copyScreenDefault)
+        _ = applySaveScreenShortcut?(.saveScreenDefault)
+        _ = applyPreviousInkShortcut?(.previousInkDefault)
         _ = applyPreviousPointerShortcut?(.previousPointerDefault)
         _ = applySoundShortcut?(.soundDefault)
         _ = applyUndoShortcut?(.undoDefault)
@@ -343,22 +354,17 @@ struct SettingsView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 2) {
-            ForEach(SettingsSection.allCases) { section in
+            ForEach(SettingsSection.allCases.filter { $0 != .about }) { section in
                 SidebarRow(section: section, selected: model.section == section) {
                     model.section = section
                 }
             }
             Spacer()
-            HStack(spacing: 8) {
-                // The icon without the app icon's transparent margin, so it fills the small space.
-                if let icon = NSImage(named: "settings_icon") ?? NSApp.applicationIconImage {
-                    Image(nsImage: icon).resizable().frame(width: 20, height: 20)
-                }
-                Text("Quite Handy").font(.system(size: 12, weight: .semibold))
-                Spacer()
+            // About sits at the bottom, apart from the settings.
+            SidebarRow(section: .about, selected: model.section == .about) {
+                model.section = .about
             }
-            .padding(.horizontal, 10)
-            .padding(.bottom, 16)
+            .padding(.bottom, 12)
         }
         .padding(.top, 52)
         .padding(.horizontal, 10)
@@ -412,6 +418,7 @@ struct SettingsView: View {
             } else {
                 PointersPage(model: model)
             }
+        case .toolbar: ToolbarPage(model: model)
         case .drawing: DrawingPage(model: model)
         case .zoom: ZoomPage(model: model)
         case .sound: SoundPage(model: model)
@@ -430,9 +437,7 @@ private struct GeneralPage: View {
                     Toggle("", isOn: model.binding({ Preferences.launchAtLogin }, { Preferences.launchAtLogin = $0 }))
                         .toggleStyle(.switch).labelsHidden().focusable(false)
                 }
-                Row("Show icon in the menu bar", detail: Preferences.showMenuBarIcon
-                        ? "Press ⌘, while the pointer is on to open Settings any time"
-                        : "Press ⌘, while the pointer is on (\(Preferences.toggleShortcut.display) turns it on) to open Settings") {
+                Row("Show icon in menu bar", detail: "Press ⌘, while Quite Handy is active to open Settings") {
                     Toggle("", isOn: model.binding({ Preferences.showMenuBarIcon }, { Preferences.showMenuBarIcon = $0 }))
                         .toggleStyle(.switch).labelsHidden().focusable(false)
                 }
@@ -458,10 +463,7 @@ private struct GeneralPage: View {
                 }
                 Row("Screen Recording", detail: "Only needed for zoom, the flashlight works without it", allowed: Permissions.screenRecording) {
                     PillButton(title: "Open Settings") {
-                        CGRequestScreenCaptureAccess()
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
-                            NSWorkspace.shared.open(url)
-                        }
+                        Preferences.askForScreenRecording()
                     }
                 }
             }
@@ -502,20 +504,32 @@ private struct ShortcutsPage: View {
                 Row("Show/hide toolbar", detail: "Shows or hides the bar with the pointers at the bottom of the screen", conflict: Conflicts.shortcut(Preferences.toolbarShortcut)) {
                     ShortcutField(shortcut: Preferences.toolbarShortcut, model: model, allowsBareKey: true) { model.applyToolbarShortcut?($0) ?? false }
                 }
-                Row("Right-click turns pointer off", detail: "Like Esc: Clears the drawing and ends the session") {
+                Row("Right-click ends session", detail: "Like Esc: Clears the drawing and ends the session") {
                     Toggle("", isOn: model.binding({ Preferences.rightClickExits }, { Preferences.rightClickExits = $0 }))
                         .toggleStyle(.switch).labelsHidden().focusable(false)
                 }
             }
             Card(title: "Draw") {
-                Row("Clear drawing", detail: "Removes all lines and stamps, the pointer stays on", conflict: Conflicts.shortcut(Preferences.clearShortcut)) {
+                Row("Clear drawing", detail: "Removes all lines and stamps, Quite Handy stays active", conflict: Conflicts.shortcut(Preferences.clearShortcut)) {
                     ShortcutField(shortcut: Preferences.clearShortcut, model: model, allowsBareKey: true) { model.applyClearShortcut?($0) ?? false }
                 }
-                Row("Undo", detail: "Takes back the last line or stamp, hold to keep going", conflict: Conflicts.shortcut(Preferences.undoShortcut)) {
+                Row("Undo", detail: "Takes back the last action – hold to keep going", conflict: Conflicts.shortcut(Preferences.undoShortcut)) {
                     ShortcutField(shortcut: Preferences.undoShortcut, model: model, allowsBareKey: true) { model.applyUndoShortcut?($0) ?? false }
                 }
-                Row("Redo", detail: "Brings back what you took back", conflict: Conflicts.shortcut(Preferences.redoShortcut)) {
+                Row("Redo", detail: "Brings back what you took back – hold to keep going", conflict: Conflicts.shortcut(Preferences.redoShortcut)) {
                     ShortcutField(shortcut: Preferences.redoShortcut, model: model, allowsBareKey: true) { model.applyRedoShortcut?($0) ?? false }
+                }
+                Row("Use next pointer", detail: "Goes through the pointers in your toolbar – hold to keep going", conflict: Conflicts.shortcut(Preferences.nextPointerShortcut)) {
+                    ShortcutField(shortcut: Preferences.nextPointerShortcut, model: model, allowsBareKey: true) { model.applyNextPointerShortcut?($0) ?? false }
+                }
+                Row("Use previous pointer", detail: "Goes back through the pointers in your toolbar – hold to keep going", conflict: Conflicts.shortcut(Preferences.previousPointerShortcut)) {
+                    ShortcutField(shortcut: Preferences.previousPointerShortcut, model: model, allowsBareKey: true) { model.applyPreviousPointerShortcut?($0) ?? false }
+                }
+                Row("Use next colour", detail: "Goes through the ink colours – hold to keep going", conflict: Conflicts.shortcut(Preferences.nextInkShortcut)) {
+                    ShortcutField(shortcut: Preferences.nextInkShortcut, model: model, allowsBareKey: true) { model.applyNextInkShortcut?($0) ?? false }
+                }
+                Row("Use previous colour", detail: "Goes back through the ink colours – hold to keep going", conflict: Conflicts.shortcut(Preferences.previousInkShortcut)) {
+                    ShortcutField(shortcut: Preferences.previousInkShortcut, model: model, allowsBareKey: true) { model.applyPreviousInkShortcut?($0) ?? false }
                 }
                 Row("Use rainbow colour", detail: "Draws in all colours of the rainbow", conflict: Conflicts.shortcut(Preferences.rainbowInkShortcut)) {
                     ShortcutField(shortcut: Preferences.rainbowInkShortcut, model: model, allowsBareKey: true) { model.applyRainbowInkShortcut?($0) ?? false }
@@ -523,7 +537,7 @@ private struct ShortcutsPage: View {
                 Row("Use automatic colour", detail: "Matches each pointer", conflict: Conflicts.shortcut(Preferences.matchInkShortcut)) {
                     ShortcutField(shortcut: Preferences.matchInkShortcut, model: model, allowsBareKey: true) { model.applyMatchInkShortcut?($0) ?? false }
                 }
-                Row("Hold to stamp numbers", detail: "Hold the key and click to place 1 to 9, keep holding to make it bigger. Drag to move, click to remove, press 1 to 9 over a stamp to change its number", conflict: Conflicts.hold(Preferences.stampKey.cgFlags)) {
+                Row("Hold to stamp numbers", detail: "Hold the key and click to place 1 to 9, keep holding to make it bigger. Drag to move, click to remove, press 1 to 9 on the keyboard over a stamp to change its number", conflict: Conflicts.hold(Preferences.stampKey.cgFlags)) {
                     Picker("", selection: model.binding({ Preferences.stampKey }, { Preferences.stampKey = $0 })) {
                         ForEach(HoldKey.allCases, id: \.self) { key in
                             Text(key.title).tag(key)
@@ -531,12 +545,22 @@ private struct ShortcutsPage: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
+                    // White pop-up without the blue accent on its arrows (where macOS lets us).
+                    .tint(Color(white: 0.55))
                     .fixedSize()
                     .focusable(false)
                 }
             }
-            Card(title: "Flashlight/Loupe") {
-                Row("Hold for flashlight/loupe", detail: DrawingPage.zoomKeyDetail, conflict: Conflicts.hold(Preferences.zoomKey.cgFlags)) {
+            Card(title: "Screenshot") {
+                Row("Copy screenshot", conflict: Conflicts.shortcut(Preferences.copyScreenShortcut)) {
+                    ShortcutField(shortcut: Preferences.copyScreenShortcut, model: model) { model.applyCopyScreenShortcut?($0) ?? false }
+                }
+                Row("Save screenshot to desktop", conflict: Conflicts.shortcut(Preferences.saveScreenShortcut)) {
+                    ShortcutField(shortcut: Preferences.saveScreenShortcut, model: model) { model.applySaveScreenShortcut?($0) ?? false }
+                }
+            }
+            Card(title: "Flashlight") {
+                Row("Hold for flashlight", detail: DrawingPage.zoomKeyDetail, conflict: Conflicts.hold(Preferences.zoomKey.cgFlags)) {
                     Picker("", selection: model.binding({ Preferences.zoomKey }, { key in
                         Preferences.zoomKey = key
                         if key != .off {
@@ -549,10 +573,12 @@ private struct ShortcutsPage: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
+                    // White pop-up without the blue accent on its arrows (where macOS lets us).
+                    .tint(Color(white: 0.55))
                     .fixedSize()
                     .focusable(false)
                 }
-                Row("Hold to change size and zoom factor", detail: "Hold the key while the flashlight/loupe is active and move the mouse (alternative to swiping on the trackpad)", conflict: Conflicts.hold(Preferences.loupeAdjustKey.cgFlags)) {
+                Row("Hold to change size and zoom factor", detail: "Hold the key while the flashlight is on and move the mouse (alternative to swiping on the trackpad)", conflict: Conflicts.hold(Preferences.loupeAdjustKey.cgFlags)) {
                     Picker("", selection: model.binding({ Preferences.loupeAdjustKey }, { Preferences.loupeAdjustKey = $0 })) {
                         ForEach(HoldKey.allCases, id: \.self) { key in
                             Text(key.title).tag(key)
@@ -560,25 +586,11 @@ private struct ShortcutsPage: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
+                    // White pop-up without the blue accent on its arrows (where macOS lets us).
+                    .tint(Color(white: 0.55))
                     .fixedSize()
                     .focusable(false)
                 }
-            }
-            Card(title: "Pointers") {
-                Row("Use next pointer", detail: "Goes through the pointers in your toolbar", conflict: Conflicts.shortcut(Preferences.nextPointerShortcut)) {
-                    ShortcutField(shortcut: Preferences.nextPointerShortcut, model: model, allowsBareKey: true) { model.applyNextPointerShortcut?($0) ?? false }
-                }
-                Row("Use previous pointer", detail: "Goes back through the pointers in your toolbar", conflict: Conflicts.shortcut(Preferences.previousPointerShortcut)) {
-                    ShortcutField(shortcut: Preferences.previousPointerShortcut, model: model, allowsBareKey: true) { model.applyPreviousPointerShortcut?($0) ?? false }
-                }
-            }
-            Card(title: "Sound") {
-                Row("Toggle sound on/off", detail: "Turns the tap sound on or off", conflict: Conflicts.shortcut(Preferences.soundShortcut)) {
-                    ShortcutField(shortcut: Preferences.soundShortcut, model: model, allowsBareKey: true) { model.applySoundShortcut?($0) ?? false }
-                }
-            }
-            if let error = model.shortcutError {
-                Text(error).font(.system(size: 12)).foregroundColor(.red)
             }
             Card(title: "Clicking") {
                 Row("Hold to interact with your Mac", detail: "Clicks, drags and scrolls reach your Mac", conflict: Conflicts.hold(Preferences.interactKey.cgFlags)) {
@@ -589,21 +601,33 @@ private struct ShortcutsPage: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
+                    // White pop-up without the blue accent on its arrows (where macOS lets us).
+                    .tint(Color(white: 0.55))
                     .fixedSize()
                     .focusable(false)
                 }
                 if Preferences.interactKey != .off {
-                    Row("While holding", detail: Preferences.interactKeepsHand ? "The hand stays, in menus too" : "The normal cursor comes back, in menus too") {
+                    Row("While holding", detail: Preferences.interactKeepsHand ? "The hand stays" : "The normal cursor comes back") {
                         Picker("", selection: model.binding({ Preferences.interactKeepsHand }, { Preferences.interactKeepsHand = $0 })) {
                             Text("Show cursor").tag(false)
                             Text("Keep hand").tag(true)
                         }
                         .labelsHidden()
                         .pickerStyle(.menu)
+                    // White pop-up without the blue accent on its arrows (where macOS lets us).
+                    .tint(Color(white: 0.55))
                         .fixedSize()
                         .focusable(false)
                     }
                 }
+            }
+            Card(title: "Sound") {
+                Row("Toggle sound on/off", conflict: Conflicts.shortcut(Preferences.soundShortcut)) {
+                    ShortcutField(shortcut: Preferences.soundShortcut, model: model, allowsBareKey: true) { model.applySoundShortcut?($0) ?? false }
+                }
+            }
+            if let error = model.shortcutError {
+                Text(error).font(.system(size: 12)).foregroundColor(.red)
             }
         }
     }
@@ -1103,7 +1127,6 @@ private struct DrawingPage: View {
             inkCard
             colorCard
             tapCard
-            toolbarCard
         }
     }
 
@@ -1118,19 +1141,24 @@ private struct DrawingPage: View {
     private var inkCard: some View {
         Card(title: "Ink") {
             Row("Pointer size") {
-                IconSlider(value: model.binding({ Double(Preferences.pointerSize) }, { Preferences.pointerSize = CGFloat($0) }),
+                IconSlider(value: model.binding({ Double(Preferences.pointerSize) }, { v in
+                    // Five stops from smallest to largest, the middle one in the centre.
+                    let r = Preferences.pointerSizeRange
+                    let k = ((CGFloat(v) - r.lowerBound) / (r.upperBound - r.lowerBound) * 4).rounded()
+                    Preferences.pointerSize = r.lowerBound + k / 4 * (r.upperBound - r.lowerBound)
+                }),
                            range: Double(Preferences.pointerSizeRange.lowerBound)...Double(Preferences.pointerSizeRange.upperBound),
                            low: Image(systemName: "hand.point.up.left.fill").font(.system(size: 10)),
                            high: Image(systemName: "hand.point.up.left.fill").font(.system(size: 16)))
             }
-            Row("Stroke size", detail: "\(Preferences.strokeSize) pt, applies to new lines") {
+            Row("Stroke size", detail: "\(Preferences.strokeSize) pt") {
                 snappingSlider({ Preferences.strokeSize }, { Preferences.strokeSize = $0 },
                                in: Preferences.strokeSizeRange, step: 1,
                                low: Image(systemName: "scribble").font(.system(size: 10, weight: .light)),
                                high: Image(systemName: "scribble").font(.system(size: 16, weight: .heavy)))
             }
-            Row("Opacity", detail: "\(Preferences.inkOpacity) %, applies to new lines") {
-                snappingSlider({ Preferences.inkOpacity }, { Preferences.inkOpacity = $0 }, in: 10...100, step: 10,
+            Row("Opacity", detail: "\(Preferences.inkOpacity)%") {
+                snappingSlider({ Preferences.inkOpacity }, { Preferences.inkOpacity = $0 }, in: 10...100, step: 1,
                                low: Image(systemName: "circle.fill").font(.system(size: 12)).opacity(0.2),
                                high: Image(systemName: "circle.fill").font(.system(size: 12)))
             }
@@ -1141,10 +1169,6 @@ private struct DrawingPage: View {
                            low: Image(systemName: "scribble").font(.system(size: 14)),
                            high: Image(systemName: "line.diagonal").font(.system(size: 14)))
             }
-            Row("Shadow under the pointer") {
-                Toggle("", isOn: model.binding({ Preferences.showShadow }, { Preferences.showShadow = $0 }))
-                    .toggleStyle(.switch).labelsHidden().focusable(false)
-            }
             Row("Lines fade", detail: "Clear them any time with \(Preferences.clearShortcut.display)") {
                 Picker("", selection: model.binding({ Preferences.fadeSeconds }, { Preferences.fadeSeconds = $0 })) {
                     ForEach(DrawingPage.fadeChoices, id: \.1) { choice in
@@ -1153,6 +1177,8 @@ private struct DrawingPage: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
+                    // White pop-up without the blue accent on its arrows (where macOS lets us).
+                    .tint(Color(white: 0.55))
                 .fixedSize()
                 .focusable(false)
             }
@@ -1186,6 +1212,8 @@ private struct DrawingPage: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
+                    // White pop-up without the blue accent on its arrows (where macOS lets us).
+                    .tint(Color(white: 0.55))
                     .fixedSize()
                     .focusable(false)
                 }
@@ -1202,19 +1230,6 @@ private struct DrawingPage: View {
         }
     }
 
-    private var toolbarCard: some View {
-        Card(title: "Toolbar") {
-            Row("Show toolbar", detail: "The bar at the bottom of the screen while Quite Handy is on") {
-                Toggle("", isOn: model.binding({ Preferences.showToolbar }, { Preferences.showToolbar = $0 }))
-                    .toggleStyle(.switch).labelsHidden().focusable(false)
-            }
-            Row("Ink colours in toolbar", detail: "Change the colour while you present") {
-                Toggle("", isOn: model.binding({ Preferences.showInkButton }, { Preferences.showInkButton = $0 }))
-                    .toggleStyle(.switch).labelsHidden().focusable(false)
-                    .disabled(!Preferences.showToolbar)
-            }
-        }
-    }
 }
 
 /// A slider with an icon on each side. Icons sit in fixed-width slots and the track has a fixed
@@ -1232,6 +1247,31 @@ private struct IconSlider<Low: View, High: View>: View {
                 .frame(width: 180)
                 .focusable(false)
             high.foregroundColor(.secondary).frame(width: 20, height: 20)
+        }
+    }
+}
+
+private struct ToolbarPage: View {
+    @ObservedObject var model: SettingsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            Card(title: nil) {
+                Row("Show toolbar", detail: "The bar at the bottom of the screen while Quite Handy is on") {
+                    Toggle("", isOn: model.binding({ Preferences.showToolbar }, { Preferences.showToolbar = $0 }))
+                        .toggleStyle(.switch).labelsHidden().focusable(false)
+                }
+                Row("Show colour palette") {
+                    Toggle("", isOn: model.binding({ Preferences.showInkButton }, { Preferences.showInkButton = $0 }))
+                        .toggleStyle(.switch).labelsHidden().focusable(false)
+                        .disabled(!Preferences.showToolbar)
+                }
+                Row("Show opacity & size") {
+                    Toggle("", isOn: model.binding({ Preferences.showKnobs }, { Preferences.showKnobs = $0 }))
+                        .toggleStyle(.switch).labelsHidden().focusable(false)
+                        .disabled(!Preferences.showToolbar)
+                }
+            }
         }
     }
 }
@@ -1267,23 +1307,11 @@ private struct ZoomPage: View {
             Preferences.zoomOn = on
             return
         }
-        let alert = NSAlert()
-        alert.messageText = "Zoom needs Screen Recording"
-        alert.informativeText = "The loupe shows a magnified picture of your screen, so macOS asks for the Screen Recording permission in the next step. Turn on Quite Handy there.\n\nThe flashlight works without it."
-        alert.addButton(withTitle: "Continue")
-        alert.addButton(withTitle: "Keep the Flashlight")
-        let finish: (NSApplication.ModalResponse) -> Void = { response in
-            guard response == .alertFirstButtonReturn else {
-                Preferences.zoomOn = false
-                return
+        ZoomPermissionSheet.show { allowed in
+            Preferences.zoomOn = allowed
+            if allowed {
+                Preferences.requestScreenRecordingIfNeeded()
             }
-            Preferences.zoomOn = true
-            Preferences.requestScreenRecordingIfNeeded()
-        }
-        if let window = NSApp.keyWindow {
-            alert.beginSheetModal(for: window, completionHandler: finish)
-        } else {
-            finish(alert.runModal())
         }
     }
 
@@ -1298,10 +1326,12 @@ private struct ZoomPage: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
+                    // White pop-up without the blue accent on its arrows (where macOS lets us).
+                    .tint(Color(white: 0.55))
                     .fixedSize()
                     .focusable(false)
                 }
-                Row("Hold to change size and zoom factor", detail: "Hold the key while the flashlight/loupe is active and move the mouse (alternative to swiping on the trackpad)", conflict: Conflicts.hold(Preferences.loupeAdjustKey.cgFlags)) {
+                Row("Hold to change size and zoom factor", detail: "Hold the key while the flashlight is on and move the mouse (alternative to swiping on the trackpad)", conflict: Conflicts.hold(Preferences.loupeAdjustKey.cgFlags)) {
                     Picker("", selection: model.binding({ Preferences.loupeAdjustKey }, { Preferences.loupeAdjustKey = $0 })) {
                         ForEach(HoldKey.allCases, id: \.self) { key in
                             Text(key.title).tag(key)
@@ -1309,6 +1339,8 @@ private struct ZoomPage: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
+                    // White pop-up without the blue accent on its arrows (where macOS lets us).
+                    .tint(Color(white: 0.55))
                     .fixedSize()
                     .focusable(false)
                 }
@@ -1319,7 +1351,7 @@ private struct ZoomPage: View {
                                low: Image(systemName: "circle").font(.system(size: 10, weight: .bold)),
                                high: Image(systemName: "circle").font(.system(size: 16, weight: .bold)))
                 }
-                Row("Darkness", detail: "\(Int((Preferences.dimAlpha * 100).rounded())) % black around the circle") {
+                Row("Darkness", detail: "\(Int((Preferences.dimAlpha * 100).rounded()))% black around the circle") {
                     IconSlider(value: model.binding({ Preferences.dimAlpha }, { Preferences.dimAlpha = ($0 * 10).rounded() / 10 }),
                                range: Preferences.dimAlphaRange,
                                low: Image(systemName: "circle.fill").font(.system(size: 12)).opacity(0.2),
@@ -1337,6 +1369,10 @@ private struct ZoomPage: View {
                 }
                 Row("Reverse swipe direction", detail: ZoomPage.directionDetail) {
                     Toggle("", isOn: model.binding({ Preferences.reverseSwipe }, { Preferences.reverseSwipe = $0 }))
+                        .toggleStyle(.switch).labelsHidden().focusable(false)
+                }
+                Row("Reverse mouse scroll", detail: "For a mouse wheel only, the trackpad follows the swipe direction above") {
+                    Toggle("", isOn: model.binding({ Preferences.reverseMouseScroll }, { Preferences.reverseMouseScroll = $0 }))
                         .toggleStyle(.switch).labelsHidden().focusable(false)
                 }
             }
@@ -1404,11 +1440,13 @@ private struct SoundPage: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
+                    // White pop-up without the blue accent on its arrows (where macOS lets us).
+                    .tint(Color(white: 0.55))
                     .fixedSize()
                     .focusable(false)
                     .disabled(!on)
                 }
-                Row("Color pointer taps too", detail: "Off by default, for quiet pointing") {
+                Row("Simple cursor taps too", detail: "Off by default, for quiet pointing") {
                     Toggle("", isOn: model.binding({ Preferences.colorPointerSound }, { Preferences.colorPointerSound = $0 }))
                         .toggleStyle(.switch).labelsHidden().focusable(false)
                         .disabled(!on)
@@ -1504,7 +1542,7 @@ private struct AboutPage: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Quite Handy").font(.system(size: 18, weight: .bold))
                     Text("Version \(version)").font(.system(size: 12)).foregroundColor(.secondary)
-                    Text("A tiny hand on a stick for your Mac. Free and open source").font(.system(size: 12)).foregroundColor(.secondary)
+                    Text("For when you need a hand to talk about things on your screen").font(.system(size: 12)).foregroundColor(.secondary)
                 }
                 Spacer()
             }
@@ -1512,8 +1550,7 @@ private struct AboutPage: View {
                 LinkRow(title: "Made by", detail: "Eric Singhartinger", url: "https://github.com/esreverse")
                 LinkRow(title: "Website", detail: "esreverse.com", url: "https://esreverse.com")
                 LinkRow(title: "Source code", detail: "github.com/esreverse/quitehandy", url: "https://github.com/esreverse/quitehandy")
-                LinkRow(title: "License", detail: "MIT", url: "https://github.com/esreverse/quitehandy/blob/main/LICENSE")
-                LinkRow(title: "Based on", detail: "TinyHand by Kamran Ahmed", url: "https://github.com/nilbuild/tinyhand")
+                LinkRow(title: "License", detail: "MIT, based on TinyHand by Kamran Ahmed", url: "https://github.com/esreverse/quitehandy/blob/main/LICENSE")
             }
             HStack {
                 Spacer()
@@ -1616,7 +1653,8 @@ private enum Conflicts {
     private static var shortcuts: [Shortcut] {
         [Preferences.toggleShortcut, Preferences.clearShortcut, Preferences.toolbarShortcut,
          Preferences.nextPointerShortcut, Preferences.previousPointerShortcut, Preferences.rainbowInkShortcut,
-         Preferences.matchInkShortcut, Preferences.soundShortcut, Preferences.undoShortcut, Preferences.redoShortcut]
+         Preferences.matchInkShortcut, Preferences.nextInkShortcut, Preferences.previousInkShortcut, Preferences.soundShortcut, Preferences.undoShortcut, Preferences.redoShortcut,
+         Preferences.copyScreenShortcut, Preferences.saveScreenShortcut]
     }
 
     private static var holdKeys: [CGEventFlags] {
@@ -1993,4 +2031,101 @@ private func pointerIcon(_ style: PointerStyle) -> NSImage? {
     }
     // Screenshots render in one pass, so load the thumbnail right away there.
     return Permissions.screenshot ? HandAsset.thumbnail(name) ?? blankIcon : blankIcon
+}
+
+
+/// Asks before macOS's Screen Recording prompt, in larger type than a standard alert.
+struct ZoomPermissionSheet: View {
+    let onAnswer: (Bool) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let icon = NSImage(named: "settings_icon") ?? NSApp.applicationIconImage {
+                Image(nsImage: icon).resizable().frame(width: 56, height: 56)
+                    .padding(.bottom, 16)
+            }
+            Text("Zoom needs Screen Recording")
+                .font(.system(size: 19, weight: .bold))
+                .padding(.bottom, 12)
+            Text("The loupe shows a magnified picture of your screen. macOS asks for the Screen Recording permission in the next step, turn on Quite Handy there.")
+                .font(.system(size: 14))
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 10)
+            Text("The flashlight works without it.")
+                .font(.system(size: 14))
+                .foregroundColor(.secondary)
+                .padding(.bottom, 26)
+            HStack(spacing: 10) {
+                Spacer()
+                SheetButton(title: "Keep the Flashlight", primary: false) { onAnswer(false) }
+                    .keyboardShortcut(.cancelAction)
+                SheetButton(title: "Continue", primary: true) { onAnswer(true) }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(28)
+        .frame(width: 440)
+    }
+
+    /// Shows the sheet on the key window (or as its own window) and reports the answer once.
+    static func show(_ answer: @escaping (Bool) -> Void) {
+        let window = NSWindow(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: false)
+        let parent = NSApp.keyWindow
+        let finish: (Bool) -> Void = { allowed in
+            if let parent = parent {
+                parent.endSheet(window)
+            } else {
+                window.close()
+                NSApp.stopModal()
+            }
+            answer(allowed)
+        }
+        let host = NSHostingView(rootView: ZoomPermissionSheet(onAnswer: finish))
+        window.contentView = host
+        window.setContentSize(host.fittingSize)
+        window.isReleasedWhenClosed = false
+        if let parent = parent {
+            parent.beginSheet(window)
+        } else {
+            window.center()
+            NSApp.runModal(for: window)
+        }
+    }
+
+    /// For --zoom-sheet-test.
+    static func snapshot() -> NSBitmapImageRep? {
+        let host = NSHostingView(rootView: ZoomPermissionSheet(onAnswer: { _ in })
+            .background(Color(nsColor: .windowBackgroundColor)))
+        host.frame = CGRect(origin: .zero, size: host.fittingSize)
+        host.layoutSubtreeIfNeeded()
+        guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
+            return nil
+        }
+        host.cacheDisplay(in: host.bounds, to: rep)
+        return rep
+    }
+}
+
+private struct SheetButton: View {
+    let title: String
+    let primary: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(primary ? .white : .primary)
+                .padding(.horizontal, 18)
+                .frame(height: 34)
+                .background(Capsule().fill(primary
+                    ? Color.accentColor.opacity(hovering ? 0.88 : 1)
+                    : Color.primary.opacity(hovering ? 0.14 : 0.09)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
 }
