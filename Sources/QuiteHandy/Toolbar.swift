@@ -411,15 +411,27 @@ final class Toolbar {
         refreshInk()
     }
 
+    /// What the simple cursor's icon was last drawn with, so it is only redrawn when that changes.
+    private var cursorIconKey: String?
+    private weak var cursorIconButton: NSButton?
+
     func refreshInk() {
         let color = currentInkColor?() ?? Ink.hex(0xFFFFFF)
         if let b = styleButtons[.stroke] {
-            b.image = Toolbar.padded(Toolbar.colorPointerIcon(color))
+            let key = "\(color.components ?? [])|\(Preferences.strokeSize)|\(Preferences.inkOpacity)|\(Preferences.inkChoice.rawValue)"
+            if key != cursorIconKey || b !== cursorIconButton {
+                cursorIconKey = key
+                cursorIconButton = b
+                b.image = Toolbar.padded(Toolbar.colorPointerIcon(color))
+            }
         }
         let hidden = !Preferences.showInkButton
         var changed = false
         for (choice, b) in swatches {
-            b.image = choice == .rainbow ? Toolbar.rainbowDot() : choice.color.map(Toolbar.inkDot) ?? Toolbar.autoDot()
+            // The dots never change: draw each one once.
+            if b.image == nil {
+                b.image = choice == .rainbow ? Toolbar.rainbowDot() : choice.color.map(Toolbar.inkDot) ?? Toolbar.autoDot()
+            }
             b.layer?.backgroundColor = choice == Preferences.inkChoice ? Toolbar.selectedColor
                 : (b === hovered ? Toolbar.hoverColor : NSColor.clear.cgColor)
             if b.isHidden != hidden {

@@ -72,10 +72,14 @@ final class SettingsModel: ObservableObject {
 
     private var observer: Any?
     private var handsObserver: Any?
+    private var liveObserver: Any?
     @Published var handMessage: String?
 
     init() {
         observer = NotificationCenter.default.addObserver(forName: Preferences.changed, object: nil, queue: .main) { [weak self] _ in
+            self?.revision += 1
+        }
+        liveObserver = NotificationCenter.default.addObserver(forName: Preferences.liveChanged, object: nil, queue: .main) { [weak self] _ in
             self?.revision += 1
         }
         handsObserver = NotificationCenter.default.addObserver(forName: CustomHands.changed, object: nil, queue: .main) { [weak self] _ in

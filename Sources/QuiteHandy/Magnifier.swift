@@ -23,7 +23,11 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
     /// Black (Preferences.dimAlpha) over the rest of the screen, with a hole where the loupe is.
     /// It is one of our own windows, so the capture leaves it out of the loupe.
     private let dim: NSWindow
-    private let dimLayer = CAShapeLayer()
+    /// The darkening: a huge round border around the spot. Its inner edge is the circle, its
+    /// outer edge lies far beyond the screen. Moving or resizing it only changes the frame, so
+    /// nothing has to be redrawn (a full-screen shape with a hole was redrawn on every move).
+    private let dimLayer = CALayer()
+    private var dimAlphaShown: CGFloat = -1
 
     private var stream: SCStream?
     private var starting = false
@@ -165,8 +169,7 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
         let dimView = NSView()
         dimView.wantsLayer = true
         dimView.layer = CALayer()
-        dimLayer.fillRule = .evenOdd
-        dimLayer.fillColor = NSColor.black.withAlphaComponent(0.2).cgColor
+        dimLayer.masksToBounds = false
         dimView.layer?.addSublayer(dimLayer)
         dim.contentView = dimView
         host.layer = CALayer()
@@ -349,14 +352,19 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
         if dim.frame != screen {
             dim.setFrame(screen, display: false)
         }
-        let path = CGMutablePath()
-        path.addRect(CGRect(origin: .zero, size: screen.size))
-        path.addEllipse(in: loupe.offsetBy(dx: -screen.minX, dy: -screen.minY))
+        let spot = loupe.offsetBy(dx: -screen.minX, dy: -screen.minY)
+        // Thick enough that the outer edge is off screen wherever the spot is.
+        let reach = hypot(screen.width, screen.height)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        dimLayer.fillColor = NSColor.black.withAlphaComponent(CGFloat(Preferences.dimAlpha)).cgColor
-        dimLayer.frame = CGRect(origin: .zero, size: screen.size)
-        dimLayer.path = path
+        let shade = CGFloat(Preferences.dimAlpha)
+        if shade != dimAlphaShown {
+            dimAlphaShown = shade
+            dimLayer.borderColor = NSColor.black.withAlphaComponent(shade).cgColor
+        }
+        dimLayer.frame = spot.insetBy(dx: -reach, dy: -reach)
+        dimLayer.borderWidth = reach
+        dimLayer.cornerRadius = spot.width / 2 + reach
         CATransaction.commit()
         if dimFadingOut {
             // Pressed again while it was fading out: stop the fade and go on from here.
@@ -367,7 +375,9 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
                 dim.animator().alphaValue = alpha
             }
         }
-        dim.alphaValue = alpha
+        if dim.alphaValue != alpha {
+            dim.alphaValue = alpha
+        }
         if !dim.isVisible {
             dim.orderFrontRegardless()
         }
@@ -437,10 +447,12 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
         // The glass ring sits outside the circle, and the darkening leaves it out too, so the ring
         // shows the undimmed screen behind it. Both grow with the ring as it fades in.
         let outerFrame = loupeFrame.insetBy(dx: -ring, dy: -ring)
-        window.setFrame(outerFrame, display: false)
+        if window.frame != outerFrame {
+            window.setFrame(outerFrame, display: false)
+        }
         let hole = loupeFrame.insetBy(dx: -ring * ringAmount, dy: -ring * ringAmount)
         layoutDim(screen: frame, loupe: hole, alpha: dimFade)
-        if #available(macOS 26.0, *), let g = glass as? NSGlassEffectView {
+        if #available(macOS 26.0, *), let g = glass as? NSGlassEffectView, g.cornerRadius != outerFrame.width / 2 {
             g.cornerRadius = outerFrame.width / 2
         }
         // Grow out of the screen: ring and shadow fade in with the zoom.
@@ -448,9 +460,12 @@ final class Magnifier: NSObject, SCStreamOutput, SCStreamDelegate {
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        layer.frame = CGRect(x: ring, y: ring, width: size, height: size)
+        let loupeRect = CGRect(x: ring, y: ring, width: size, height: size)
+        if layer.frame != loupeRect {
+            layer.frame = loupeRect
+            layer.shadowPath = CGPath(ellipseIn: layer.bounds, transform: nil)
+        }
         let inner = layer.bounds.width
-        layer.shadowPath = CGPath(ellipseIn: layer.bounds, transform: nil)
         layer.shadowOpacity = glass == nil ? Float(0.35 * progress) : 0
         content.frame = layer.bounds
         content.cornerRadius = inner / 2

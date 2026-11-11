@@ -5,6 +5,13 @@ so write it for people using the app.
 
 
 
+## 1.6.1
+
+- The flashlight and the zoom loupe run much more smoothly: the darkening is no longer redrawn on every move
+- Changing the size or zoom of the flashlight no longer makes everything stutter
+- Dragging the opacity and size knobs in the toolbar is smoother
+
+
 ## 1.6.0
 
 - Hand Pointer is now called Quite Handy. It is a new app on your Mac: allow Accessibility once more in System Settings, and Open at login is now on by default

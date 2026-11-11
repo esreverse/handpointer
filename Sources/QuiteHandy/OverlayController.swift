@@ -3,6 +3,8 @@ import ScreenCaptureKit
 import Carbon.HIToolbox
 
 final class OverlayController {
+    /// The click sound that is loaded, so a settings change only reloads it when it changed.
+    private var loadedTapSound: TapSoundChoice?
     private final class OverlayWindow: NSWindow {
         override var canBecomeKey: Bool { false }
         override var canBecomeMain: Bool { false }
@@ -344,7 +346,10 @@ final class OverlayController {
             self?.inputTap.interactKey = Preferences.interactKey.cgFlags
             self?.inputTap.rightClickExits = Preferences.rightClickExits
             self?.armView.updateInkColor()
-            self?.tapSound.load(Preferences.tapSound)
+            if let self = self, self.loadedTapSound != Preferences.tapSound {
+                self.loadedTapSound = Preferences.tapSound
+                self.tapSound.load(Preferences.tapSound)
+            }
             if let self = self, self.armView.style != PointerStyle.saved {
                 self.pick(PointerStyle.saved)
             }

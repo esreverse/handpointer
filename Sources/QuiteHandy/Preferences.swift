@@ -661,8 +661,13 @@ enum Preferences {
 
         private static func set(_ value: Any, _ key: String) {
         defaults.set(value, forKey: key)
-        NotificationCenter.default.post(name: changed, object: nil)
+        // Size and zoom change in many small steps while you swipe: only Settings needs to know,
+        // the rest of the app (toolbar, sounds, hand) would rebuild for nothing on every step.
+        NotificationCenter.default.post(name: liveKeys.contains(key) ? liveChanged : changed, object: nil)
     }
+
+    static let liveChanged = Notification.Name("QuiteHandyPreferencesLiveChanged")
+    private static let liveKeys: Set<String> = ["loupeSize", "zoomFactor"]
 
     private static func loadShortcut(_ key: String) -> Shortcut? {
         guard let d = defaults.dictionary(forKey: key),
